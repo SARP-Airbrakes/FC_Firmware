@@ -15,7 +15,6 @@ set(MX_Include_Dirs
     ${CMAKE_SOURCE_DIR}/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy
     ${CMAKE_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F4xx/Include
     ${CMAKE_SOURCE_DIR}/Drivers/CMSIS/Include
-    ${CMAKE_SOURCE_DIR}/Drivers/BNO055
 )
 
 # STM32CubeMX generated application sources
@@ -49,10 +48,6 @@ set(STM32_Drivers_Src
 # Drivers Midllewares
 
 
-# BNO055 Driver
-set(BNO055_Drivers_Src
-    ${CMAKE_SOURCE_DIR}/Drivers/BNO055/BNO055.cc
-)
 
 # Link directories setup
 set(MX_LINK_DIRS
@@ -61,9 +56,8 @@ set(MX_LINK_DIRS
 # Project static libraries
 set(MX_LINK_LIBS 
     STM32_Drivers
-    BNO055_Drivers
-    
 )
+
 # Interface library for includes and symbols
 add_library(stm32cubemx INTERFACE)
 target_include_directories(stm32cubemx INTERFACE ${MX_Include_Dirs})
@@ -73,9 +67,6 @@ target_compile_definitions(stm32cubemx INTERFACE ${MX_Defines_Syms})
 add_library(STM32_Drivers OBJECT)
 target_sources(STM32_Drivers PRIVATE ${STM32_Drivers_Src})
 target_link_libraries(STM32_Drivers PUBLIC stm32cubemx)
-
-# Create BNO055 driver static library
-add_library(BNO055_Drivers OBJECT ${BNO055_Drivers_Src})
 
 # Add STM32CubeMX generated application sources to the project
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${MX_Application_Src})
