@@ -16,6 +16,7 @@ public: // constants
     static constexpr uint8_t PAGE_ID_ADDR = 0x07; /* Page Id */
     static constexpr uint8_t CALIB_STAT_ADDR = 0x35; /* Calibration status */
     static constexpr uint8_t SYS_STATUS_ADDR = 0x39; /* System status code */
+    static constexpr uint8_t OPR_MODE_ADDR = 0x3D; /* Operation mode */
     static constexpr uint8_t PWR_MODE_ADDR = 0x3E; /* Power mode */
 
     /** expected fixed-value of CHIP_ID (0x00) register (see 4.3.1). */
@@ -48,15 +49,15 @@ public: // types
     /**
      * Enum representing the different system status code values (see 4.3.58).
      */
-    enum class sys_status_result : uint8_t { 
+    enum class sys_status : uint8_t { 
         SYSTEM_IDLE = 0, /* System Idle */
         SYSTEM_ERROR = 1, /* System Error */
     };
 
     /**
-     * Enum representing the different operation modes (see 3.5).
+     * Enum representing the different operation modes (see 3.3 and table 3-5).
      */
-    enum class opr_mode {
+    enum class opr_mode : uint8_t {
         /* CONFIG MODE */
         CONFIGMODE = 0x00,
 
@@ -78,7 +79,7 @@ public: // types
     };
 
     /**
-     * Enum representing the different power modes (see 3.2).
+     * Enum representing the different power modes (see 3.2 and table 3-1).
      */
     enum class pwr_mode : uint8_t {
         NORMAL = 0x00,
@@ -120,11 +121,22 @@ public: // methods
      * 4.3.62).
      */
     void set_power_mode(pwr_mode mode);
+
     /**
      * Get the power mode of the chip (see 3.2 and 4.3.62).
      */
     pwr_mode get_power_mode();
 
+    /**
+     * Sets the operation mode of the chip to the given operation mode (see 3.3
+     * and table 3-5).
+     */
+    void set_operation_mode(opr_mode mode);
+
+    /**
+     * Get the operation mode of the chip (see 3.3 and 4.3.61).
+     */
+    opr_mode get_operation_mode();
 
     /**
      * Sets the power mode to suspend (see 3.2.3). All sensors are put into

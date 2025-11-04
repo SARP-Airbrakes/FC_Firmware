@@ -52,6 +52,21 @@ bno055::pwr_mode bno055::get_power_mode()
     return (pwr_mode) read_byte(PWR_MODE_ADDR);
 }
 
+void bno055::set_operation_mode(opr_mode mode)
+{
+    write_byte(OPR_MODE_ADDR, (uint8_t) mode);
+}
+
+bno055::opr_mode bno055::get_operation_mode()
+{
+    return (opr_mode) read_byte(OPR_MODE_ADDR);
+}
+
+void bno055::suspend()
+{
+    set_power_mode(pwr_mode::SUSPEND);
+}
+
 uint8_t bno055::read_byte(uint8_t address)
 {
     // TODO(fergus-xu): read i2c using hal wrapper

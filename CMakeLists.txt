@@ -40,16 +40,6 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
-## BNO055 driver
-set(BNO055_Drivers_Src
-    ${CMAKE_SOURCE_DIR}/Drivers/BNO055/BNO055.cc
-)
-
-# Create BNO055 driver static library
-add_library(BNO055_Drivers OBJECT ${BNO055_Drivers_Src})
-target_link_libraries(BNO055_Drivers PUBLIC stm32cubemx)
-target_include_directories(BNO055_Drivers INTERFACE ${CMAKE_SOURCE_DIR}/Drivers/BNO055)
-
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
@@ -58,11 +48,13 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    Drivers/BNO055/BNO055.cc
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    ${CMAKE_SOURCE_DIR}/Drivers/BNO055
 )
 
 # Add project symbols (macros)
@@ -73,7 +65,6 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
-    BNO055_Drivers
 
     # Add user defined libraries
 )
