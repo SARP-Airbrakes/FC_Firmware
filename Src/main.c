@@ -20,10 +20,6 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "usb_device.h"
-#include "usbd_cdc.h"
-#include "usbd_cdc_if.h"
-
-#include <sdk/drivers/BNO055.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -48,12 +44,62 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
+SPI_HandleTypeDef hspi1;
+
+/* Definitions for controller_task */
+osThreadId_t controller_taskHandle;
+const osThreadAttr_t controller_task_attributes = {
+  .name = "controller_task",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for imu_driver_task */
+osThreadId_t imu_driver_taskHandle;
+const osThreadAttr_t imu_driver_task_attributes = {
+  .name = "imu_driver_task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityBelowNormal,
+};
+/* Definitions for inc_driver_task */
+osThreadId_t inc_driver_taskHandle;
+const osThreadAttr_t inc_driver_task_attributes = {
+  .name = "inc_driver_task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for alt_driver_task */
+osThreadId_t alt_driver_taskHandle;
+const osThreadAttr_t alt_driver_task_attributes = {
+  .name = "alt_driver_task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for fsh_driver_task */
+osThreadId_t fsh_driver_taskHandle;
+const osThreadAttr_t fsh_driver_task_attributes = {
+  .name = "fsh_driver_task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for imu_driver_mutex */
+osMutexId_t imu_driver_mutexHandle;
+const osMutexAttr_t imu_driver_mutex_attributes = {
+  .name = "imu_driver_mutex"
+};
+/* Definitions for encoder_driver_mutex */
+osMutexId_t encoder_driver_mutexHandle;
+const osMutexAttr_t encoder_driver_mutex_attributes = {
+  .name = "encoder_driver_mutex"
+};
+/* Definitions for altimeter_driver_mutex */
+osMutexId_t altimeter_driver_mutexHandle;
+const osMutexAttr_t altimeter_driver_mutex_attributes = {
+  .name = "altimeter_driver_mutex"
+};
+/* Definitions for flash_driver_mutex */
+osMutexId_t flash_driver_mutexHandle;
+const osMutexAttr_t flash_driver_mutex_attributes = {
+  .name = "flash_driver_mutex"
 };
 /* USER CODE BEGIN PV */
 
@@ -63,10 +109,14 @@ const osThreadAttr_t defaultTask_attributes = {
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
-void StartDefaultTask(void *argument);
+static void MX_SPI1_Init(void);
+void start_controller(void *argument);
+void start_imu_driver(void *argument);
+void start_inc_driver(void *argument);
+void start_alt_driver(void *argument);
+void start_fsh_driver(void *argument);
 
 /* USER CODE BEGIN PFP */
-static void quickprint(const char *);
 
 /* USER CODE END PFP */
 
@@ -105,12 +155,25 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
 
   /* Init scheduler */
-  //osKernelInitialize();
+  osKernelInitialize();
+  /* Create the mutex(es) */
+  /* creation of imu_driver_mutex */
+  imu_driver_mutexHandle = osMutexNew(&imu_driver_mutex_attributes);
+
+  /* creation of encoder_driver_mutex */
+  encoder_driver_mutexHandle = osMutexNew(&encoder_driver_mutex_attributes);
+
+  /* creation of altimeter_driver_mutex */
+  altimeter_driver_mutexHandle = osMutexNew(&altimeter_driver_mutex_attributes);
+
+  /* creation of flash_driver_mutex */
+  flash_driver_mutexHandle = osMutexNew(&flash_driver_mutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -129,8 +192,20 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  //defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of controller_task */
+  controller_taskHandle = osThreadNew(start_controller, NULL, &controller_task_attributes);
+
+  /* creation of imu_driver_task */
+  imu_driver_taskHandle = osThreadNew(start_imu_driver, NULL, &imu_driver_task_attributes);
+
+  /* creation of inc_driver_task */
+  inc_driver_taskHandle = osThreadNew(start_inc_driver, NULL, &inc_driver_task_attributes);
+
+  /* creation of alt_driver_task */
+  alt_driver_taskHandle = osThreadNew(start_alt_driver, NULL, &alt_driver_task_attributes);
+
+  /* creation of fsh_driver_task */
+  fsh_driver_taskHandle = osThreadNew(start_fsh_driver, NULL, &fsh_driver_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -141,28 +216,16 @@ int main(void)
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
-  //osKernelStart();
+  osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
-
-    int on = 0;
-    uint8_t buf[4];
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
-    // auto err = HAL_I2C_Mem_Read(&hi2c1, 0x29, sdk::bno055::CHIP_ID_ADDR, I2C_MEMADD_SIZE_8BIT, buf, sizeof(uint8_t), HAL_MAX_DELAY);
-    // if (err == HAL_OK) {
-    //     quickprint("Hello, world!\r\n");
-    // } else {
-    //     quickprint("Well, that did not work.\r\n");
-    // }
 
-    on = !on;
-    HAL_GPIO_WritePin(GPIOC, 13, (GPIO_PinState) on);
-    HAL_Delay(500);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -250,6 +313,44 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_1LINE;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -283,40 +384,104 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-static void quickprint(const char *str)
-{
-    const char *end;
-    for (end = str; *end; end++) {}
-    CDC_Transmit_FS((uint8_t *) str, (uint16_t) (end - str));
-}
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
-
+/* USER CODE BEGIN Header_start_controller */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the controller_task thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+/* USER CODE END Header_start_controller */
+void start_controller(void *argument)
 {
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-
   for(;;)
   {
-    osDelay(1000);
+    osDelay(1);
   }
   /* USER CODE END 5 */
 }
 
+/* USER CODE BEGIN Header_start_imu_driver */
+/**
+* @brief Function implementing the imu_driver_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_start_imu_driver */
+void start_imu_driver(void *argument)
+{
+  /* USER CODE BEGIN start_imu_driver */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END start_imu_driver */
+}
+
+/* USER CODE BEGIN Header_start_inc_driver */
+/**
+* @brief Function implementing the inc_driver_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_start_inc_driver */
+void start_inc_driver(void *argument)
+{
+  /* USER CODE BEGIN start_inc_driver */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END start_inc_driver */
+}
+
+/* USER CODE BEGIN Header_start_alt_driver */
+/**
+* @brief Function implementing the alt_driver_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_start_alt_driver */
+void start_alt_driver(void *argument)
+{
+  /* USER CODE BEGIN start_alt_driver */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END start_alt_driver */
+}
+
+/* USER CODE BEGIN Header_start_fsh_driver */
+/**
+* @brief Function implementing the fsh_driver_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_start_fsh_driver */
+void start_fsh_driver(void *argument)
+{
+  /* USER CODE BEGIN start_fsh_driver */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END start_fsh_driver */
+}
+
 /**
   * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
+  * @note   This function is called  when TIM10 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
   * a global variable "uwTick" used as application time base.
   * @param  htim : TIM handle
@@ -327,7 +492,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM1)
+  if (htim->Instance == TIM10)
   {
     HAL_IncTick();
   }
