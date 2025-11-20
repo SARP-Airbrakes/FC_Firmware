@@ -21,6 +21,8 @@
 #include "cmsis_os.h"
 #include "usb_device.h"
 
+#include "airbrakes.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -176,6 +178,9 @@ int main(void)
   flash_driver_mutexHandle = osMutexNew(&flash_driver_mutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
+
+  airbrakes_state_handle_t state_handle = airbrakes_initialize();
+
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
