@@ -21,11 +21,10 @@
 #include "cmsis_os.h"
 #include "usb_device.h"
 
-#include "airbrakes.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <usbd_cdc_if.h>
+#include <airbrakes.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -82,26 +81,6 @@ const osThreadAttr_t fsh_driver_task_attributes = {
   .name = "fsh_driver_task",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for imu_driver_mutex */
-osMutexId_t imu_driver_mutexHandle;
-const osMutexAttr_t imu_driver_mutex_attributes = {
-  .name = "imu_driver_mutex"
-};
-/* Definitions for encoder_driver_mutex */
-osMutexId_t encoder_driver_mutexHandle;
-const osMutexAttr_t encoder_driver_mutex_attributes = {
-  .name = "encoder_driver_mutex"
-};
-/* Definitions for altimeter_driver_mutex */
-osMutexId_t altimeter_driver_mutexHandle;
-const osMutexAttr_t altimeter_driver_mutex_attributes = {
-  .name = "altimeter_driver_mutex"
-};
-/* Definitions for flash_driver_mutex */
-osMutexId_t flash_driver_mutexHandle;
-const osMutexAttr_t flash_driver_mutex_attributes = {
-  .name = "flash_driver_mutex"
 };
 /* USER CODE BEGIN PV */
 
@@ -164,18 +143,6 @@ int main(void)
 
   /* Init scheduler */
   osKernelInitialize();
-  /* Create the mutex(es) */
-  /* creation of imu_driver_mutex */
-  imu_driver_mutexHandle = osMutexNew(&imu_driver_mutex_attributes);
-
-  /* creation of encoder_driver_mutex */
-  encoder_driver_mutexHandle = osMutexNew(&encoder_driver_mutex_attributes);
-
-  /* creation of altimeter_driver_mutex */
-  altimeter_driver_mutexHandle = osMutexNew(&altimeter_driver_mutex_attributes);
-
-  /* creation of flash_driver_mutex */
-  flash_driver_mutexHandle = osMutexNew(&flash_driver_mutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
 
@@ -198,19 +165,19 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of controller_task */
-  controller_taskHandle = osThreadNew(start_controller, NULL, &controller_task_attributes);
+  controller_taskHandle = osThreadNew(start_controller, (void*) state_handle, &controller_task_attributes);
 
   /* creation of imu_driver_task */
-  imu_driver_taskHandle = osThreadNew(start_imu_driver, NULL, &imu_driver_task_attributes);
+  imu_driver_taskHandle = osThreadNew(start_imu_driver, (void*) state_handle, &imu_driver_task_attributes);
 
   /* creation of inc_driver_task */
-  inc_driver_taskHandle = osThreadNew(start_inc_driver, NULL, &inc_driver_task_attributes);
+  inc_driver_taskHandle = osThreadNew(start_inc_driver, (void*) state_handle, &inc_driver_task_attributes);
 
   /* creation of alt_driver_task */
-  alt_driver_taskHandle = osThreadNew(start_alt_driver, NULL, &alt_driver_task_attributes);
+  alt_driver_taskHandle = osThreadNew(start_alt_driver, (void*) state_handle, &alt_driver_task_attributes);
 
   /* creation of fsh_driver_task */
-  fsh_driver_taskHandle = osThreadNew(start_fsh_driver, NULL, &fsh_driver_task_attributes);
+  fsh_driver_taskHandle = osThreadNew(start_fsh_driver, (void*) state_handle, &fsh_driver_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -335,7 +302,7 @@ static void MX_SPI1_Init(void)
   /* SPI1 parameter configuration*/
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_1LINE;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
@@ -374,14 +341,24 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(BLACKPILL_LED_GPIO_Port, BLACKPILL_LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PC13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(FLASH_CS_GPIO_Port, FLASH_CS_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : BLACKPILL_LED_Pin */
+  GPIO_InitStruct.Pin = BLACKPILL_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(BLACKPILL_LED_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : FLASH_CS_Pin */
+  GPIO_InitStruct.Pin = FLASH_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(FLASH_CS_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -405,9 +382,12 @@ void start_controller(void *argument)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
+  const uint8_t buf[] = "Hello, world!\r\n";
+
   for(;;)
   {
-    osDelay(1);
+    CDC_Transmit_FS((uint8_t *) buf, sizeof(buf) - 1);
+    osDelay(1000);
   }
   /* USER CODE END 5 */
 }
