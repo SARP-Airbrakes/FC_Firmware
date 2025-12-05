@@ -42,12 +42,34 @@ void airbrakes_flash_driver_update(airbrakes_state_handle_t handle)
     state.flash_driver.update();
 }
 
+static uint8_t rx_buf[256];
+static uint8_t *rx_buf_end = rx_buf;
+
+static void airbrakes_serial_receive_command(void)
+{
+    HAL_GPIO_TogglePin(BLACKPILL_LED_GPIO_Port, BLACKPILL_LED_Pin);
+    CDC_Transmit_FS(rx_buf, (uint16_t) (rx_buf_end - rx_buf));
+
+    static const uint8_t received_buf[] = "\r\n\r\n> ";
+    CDC_Transmit_FS((uint8_t *) received_buf, sizeof(received_buf) - 1);
+    rx_buf_end = rx_buf;
+}
+
 void airbrakes_serial_receive(uint8_t *buf, uint32_t *len)
 {
     if (len != nullptr) {
-        HAL_GPIO_TogglePin(BLACKPILL_LED_GPIO_Port, BLACKPILL_LED_Pin);
         CDC_Transmit_FS(buf, *len);
-        CDC_Transmit_FS((uint8_t *) "\r\n", 2);
+        for (uint32_t i = 0; i < *len; i++) {
+            if ((rx_buf_end - rx_buf) >= ((int) sizeof(rx_buf))) {
+                airbrakes_serial_receive_command();
+                return;
+            }
+            *(rx_buf_end++) = buf[i];
+            if (buf[i] == '\n') {
+                airbrakes_serial_receive_command();
+                return;
+            }
+        }
     }
 }
 

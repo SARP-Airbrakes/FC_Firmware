@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <usbd_cdc_if.h>
+#include <testing.h>
 #include <airbrakes.h>
 /* USER CODE END Includes */
 
@@ -382,11 +383,12 @@ void start_controller(void *argument)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-  const uint8_t buf[] = "Hello, world!\r\n";
+  // const uint8_t buf[] = "Hello, world!\r\n";
 
   for(;;)
   {
-    CDC_Transmit_FS((uint8_t *) buf, sizeof(buf) - 1);
+    // CDC_Transmit_FS((uint8_t *) buf, sizeof(buf) - 1);
+    testing_test_and_print();
     osDelay(1000);
   }
   /* USER CODE END 5 */
