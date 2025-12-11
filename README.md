@@ -1,2 +1,2 @@
 # Air-brakes Firmware
-This is the repository containing the air-brakes firmware.
+This is the repository containing the Airbrakes firmware.
