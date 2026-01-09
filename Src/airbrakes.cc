@@ -1,5 +1,6 @@
 
 #include <airbrakes.h>
+#include <testing.h>
 
 #include <sdk/spi.h>
 #include <sdk/unique_pin.h>
@@ -7,6 +8,9 @@
 
 #include <usbd_cdc_if.h>
 #include <main.h>
+
+#include "cmsis_os2.h"
+#include <cstdarg>
 
 #define FLASH_CS_PIN_GPIO GPIOA
 #define FLASH_CS_PIN_GPIO_PIN 1
@@ -48,29 +52,60 @@ static uint8_t *rx_buf_end = rx_buf;
 static void airbrakes_serial_receive_command(void)
 {
     HAL_GPIO_TogglePin(BLACKPILL_LED_GPIO_Port, BLACKPILL_LED_Pin);
-    CDC_Transmit_FS(rx_buf, (uint16_t) (rx_buf_end - rx_buf));
-
-    static const uint8_t received_buf[] = "\r\n\r\n> ";
-    CDC_Transmit_FS((uint8_t *) received_buf, sizeof(received_buf) - 1);
+    airbrakes_print_prompt();
     rx_buf_end = rx_buf;
+
+    if (::strcmp((const char *) rx_buf, "test") == 0) {
+        testing_test_and_print();
+    } else {
+        airbrakes_serial_printf("Invalid command \"%s\"\n", rx_buf);
+    }
+}
+
+void airbrakes_print_prompt(void)
+{
+    airbrakes_serial_print("\r\n\r\n> ");
 }
 
 void airbrakes_serial_receive(uint8_t *buf, uint32_t *len)
 {
     if (len != nullptr) {
-        CDC_Transmit_FS(buf, *len);
+        int offset = 0;
         for (uint32_t i = 0; i < *len; i++) {
             if ((rx_buf_end - rx_buf) >= ((int) sizeof(rx_buf))) {
                 airbrakes_serial_receive_command();
                 return;
             }
-            *(rx_buf_end++) = buf[i];
-            if (buf[i] == '\n') {
+            if (buf[i] == '\r' || buf[i] == '\n') {
+                *rx_buf_end = 0;
                 airbrakes_serial_receive_command();
+                offset--;
                 return;
+            } else {
+                *(rx_buf_end++) = buf[i];
             }
         }
+        CDC_Transmit_FS(buf, *len + offset);
     }
+}
+
+void airbrakes_serial_print(const char *buf)
+{
+    int i = 0;
+    const char *tmp;
+    for (tmp = buf; *tmp; tmp++)
+        i++;
+    CDC_Transmit_FS((uint8_t *) buf, i);
+}
+
+void airbrakes_serial_printf(const char *format, ...)
+{
+    char buf[128];
+    ::va_list vargs;
+    va_start(vargs, format);
+    vsnprintf(buf, sizeof(buf), format, vargs);
+    va_end(vargs);
+    airbrakes_serial_print(buf);
 }
 
 } // extern "C"
