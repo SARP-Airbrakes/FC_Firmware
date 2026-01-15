@@ -10,6 +10,7 @@
 #include <main.h>
 
 #include "cmsis_os2.h"
+#include "sdk/i2c.h"
 #include <cstdarg>
 
 #define FLASH_CS_PIN_GPIO GPIOA
@@ -106,6 +107,14 @@ void airbrakes_serial_printf(const char *format, ...)
     vsnprintf(buf, sizeof(buf), format, vargs);
     va_end(vargs);
     airbrakes_serial_print(buf);
+}
+
+void airbrakes_i2c_interrupt(void *hdmatx)
+{
+    /* TODO: this is a error condition */
+    if (hdmatx == nullptr) return;
+    sdk::i2c_master *master = (sdk::i2c_master *) hdmatx;
+    master->unblock_from_isr();
 }
 
 } // extern "C"

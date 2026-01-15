@@ -280,7 +280,7 @@ static void MX_I2C1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN I2C1_Init 2 */
-
+  hi2c1.hdmatx = NULL;
   /* USER CODE END I2C1_Init 2 */
 
 }
@@ -361,13 +361,32 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(FLASH_CS_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : EXTI_CH_A_Pin EXTI_CH_B_Pin */
+  GPIO_InitStruct.Pin = EXTI_CH_A_Pin|EXTI_CH_B_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t pin)
+{
+    /* TODO: call sdk::quad_encoder::read_and_update */
+}
 
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    airbrakes_i2c_interrupt((void *) hi2c->hdmatx);
+}
+
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    airbrakes_i2c_interrupt((void *) hi2c->hdmatx);
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_start_controller */
@@ -504,8 +523,7 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.

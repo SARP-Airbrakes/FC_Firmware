@@ -20,6 +20,8 @@ void airbrakes_serial_receive(uint8_t *buf, uint32_t *len);
 void airbrakes_serial_print(const char *buf);
 void airbrakes_serial_printf(const char *format, ...);
 
+void airbrakes_i2c_interrupt(void *hdmatx);
+
 #ifdef __cplusplus
 } // exterm "C"
 #endif

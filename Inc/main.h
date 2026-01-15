@@ -63,6 +63,10 @@ void Error_Handler(void);
 #define BLACKPILL_LED_GPIO_Port GPIOC
 #define FLASH_CS_Pin GPIO_PIN_2
 #define FLASH_CS_GPIO_Port GPIOB
+#define EXTI_CH_A_Pin GPIO_PIN_14
+#define EXTI_CH_A_GPIO_Port GPIOB
+#define EXTI_CH_B_Pin GPIO_PIN_15
+#define EXTI_CH_B_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
