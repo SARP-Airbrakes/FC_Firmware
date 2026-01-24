@@ -151,7 +151,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_MUTEX */
 
-  airbrakes_state_handle_t state_handle = airbrakes_initialize();
+  airbrakes_initialize();
 
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */

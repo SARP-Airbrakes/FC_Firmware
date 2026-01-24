@@ -2,6 +2,7 @@
 #include <airbrakes.h>
 #include <testing.h>
 
+#include <sdk/i2c.h>
 #include <sdk/spi.h>
 #include <sdk/unique_pin.h>
 #include <sdk/drivers/w25q16jv.h>
@@ -9,42 +10,30 @@
 #include <usbd_cdc_if.h>
 #include <main.h>
 
-#include "cmsis_os2.h"
-#include "sdk/i2c.h"
 #include <cstdarg>
 
 #define FLASH_CS_PIN_GPIO GPIOA
 #define FLASH_CS_PIN_GPIO_PIN 1
 
-struct airbrakes_state {
-
-    airbrakes_state(sdk::spi &spi1) : flash_driver(spi1,
-            sdk::unique_pin(FLASH_CS_PIN_GPIO, FLASH_CS_PIN_GPIO_PIN))
-    {
-    }
-
-    sdk::w25q16jv flash_driver;
-};
-
-static inline airbrakes_state &cast_state(airbrakes_state_handle_t handle)
+airbrakes_state::airbrakes_state(sdk::i2c_master i2c1) : imu(i2c1), baro(i2c1)
 {
-    return *((airbrakes_state *) handle);
+}
+
+void airbrakes_state::refresh_imu()
+{
+    imu.update();
 }
 
 extern "C" {
 
-airbrakes_state_handle_t airbrakes_initialize()
-{
-    static sdk::spi spi1(&hspi1);
-    static airbrakes_state state(spi1);
+airbrakes_state_handle_t state_handle;
 
-    return &state;
-}
-
-void airbrakes_flash_driver_update(airbrakes_state_handle_t handle)
+void airbrakes_initialize()
 {
-    airbrakes_state &state = cast_state(handle);
-    state.flash_driver.update();
+    sdk::i2c_master i2c1(&hi2c1);
+
+    static airbrakes_state state(std::move(i2c1));
+    state_handle = &state;
 }
 
 static uint8_t rx_buf[256];

@@ -12,7 +12,7 @@ typedef enum {
 
 typedef struct {
     const char *name;
-    testing_result_t ( *test)(void);
+    testing_result_t (*test)(void);
 } testing_test_t;
 
 extern const testing_test_t sdk_mutex_tests[];

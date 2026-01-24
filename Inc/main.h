@@ -38,6 +38,7 @@ extern "C" {
 /* USER CODE BEGIN ET */
 
 extern SPI_HandleTypeDef hspi1;
+extern I2C_HandleTypeDef hi2c1;
 
 /* USER CODE END ET */
 
