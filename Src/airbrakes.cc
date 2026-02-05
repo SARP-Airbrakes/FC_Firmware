@@ -15,15 +15,6 @@
 #define FLASH_CS_PIN_GPIO GPIOA
 #define FLASH_CS_PIN_GPIO_PIN 1
 
-airbrakes_state::airbrakes_state(sdk::i2c_master i2c1) : imu(i2c1), baro(i2c1)
-{
-}
-
-void airbrakes_state::refresh_imu()
-{
-    imu.update();
-}
-
 extern "C" {
 
 airbrakes_state_handle_t state_handle;
