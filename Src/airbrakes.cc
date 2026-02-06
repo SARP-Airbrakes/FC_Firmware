@@ -47,68 +47,6 @@ void airbrakes_flash_driver_update(airbrakes_state_handle_t handle)
     state.flash_driver.update();
 }
 
-static uint8_t rx_buf[256];
-static uint8_t *rx_buf_end = rx_buf;
-
-static void airbrakes_serial_receive_command(void)
-{
-    HAL_GPIO_TogglePin(BLACKPILL_LED_GPIO_Port, BLACKPILL_LED_Pin);
-    airbrakes_print_prompt();
-    rx_buf_end = rx_buf;
-
-    if (::strcmp((const char *) rx_buf, "test") == 0) {
-        testing_test_and_print();
-    } else {
-        airbrakes_serial_printf("Invalid command \"%s\"\n", rx_buf);
-    }
-}
-
-void airbrakes_print_prompt(void)
-{
-    airbrakes_serial_print("\r\n\r\n> ");
-}
-
-void airbrakes_serial_receive(uint8_t *buf, uint32_t *len)
-{
-    if (len != nullptr) {
-        int offset = 0;
-        for (uint32_t i = 0; i < *len; i++) {
-            if ((rx_buf_end - rx_buf) >= ((int) sizeof(rx_buf))) {
-                airbrakes_serial_receive_command();
-                return;
-            }
-            if (buf[i] == '\r' || buf[i] == '\n') {
-                *rx_buf_end = 0;
-                airbrakes_serial_receive_command();
-                offset--;
-                return;
-            } else {
-                *(rx_buf_end++) = buf[i];
-            }
-        }
-        CDC_Transmit_FS(buf, *len + offset);
-    }
-}
-
-void airbrakes_serial_print(const char *buf)
-{
-    int i = 0;
-    const char *tmp;
-    for (tmp = buf; *tmp; tmp++)
-        i++;
-    CDC_Transmit_FS((uint8_t *) buf, i);
-}
-
-void airbrakes_serial_printf(const char *format, ...)
-{
-    char buf[128];
-    ::va_list vargs;
-    va_start(vargs, format);
-    vsnprintf(buf, sizeof(buf), format, vargs);
-    va_end(vargs);
-    airbrakes_serial_print(buf);
-}
-
 void airbrakes_i2c_interrupt(void *hdmatx)
 {
     /* TODO: this is a error condition */
@@ -116,6 +54,11 @@ void airbrakes_i2c_interrupt(void *hdmatx)
     sdk::i2c_master *master = (sdk::i2c_master *) hdmatx;
     master->unblock_from_isr();
 }
+
+void airbrakes_cli_receive(uint8_t* Buf, uint32_t *Len)
+{
+    // send received packets to air brakes sdk
+    airbrakes_serial_receive(Buf, Len); 
 
 } // extern "C"
 
