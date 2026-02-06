@@ -38,6 +38,7 @@ static void mdlOutputs(SimStruct *S, int_T tid)
     } else {
         *Cd = CD_CONTROLLER_MIN_CD;
     }
+    ssPrintf("Time: %f, V: %f, Alt: %f, OutCd: %f\n", *time, *V, *X, *Cd);
 }
 
 static void mdlTerminate(SimStruct *S) {}
