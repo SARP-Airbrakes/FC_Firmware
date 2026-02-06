@@ -10,7 +10,7 @@ static void mdlInitializeSizes(SimStruct *S)
     ssSetNumInputPorts(S, 3);
     ssSetNumOutputPorts(S, 1);
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 3; i++) {
         ssSetInputPortWidth(S, i, 1);
         ssSetInputPortDirectFeedThrough(S, i, 1);
     }

@@ -13,7 +13,7 @@ real_T cd_controller_solve(real_T vel_mps, real_T alt_m, real_T target_m)
 
     int i;
 
-    real_T cdab = CD_CONTROLLER_RANGE < r(0.2) ? r(0.2) : CD_CONTROLLER_RANGE;
+    real_T cdab = CD_CONTROLLER_RANGE > r(0.2) ? r(0.2) : CD_CONTROLLER_RANGE;
 
     for (i = 0; i < CD_CONTROLLER_MAX_ITERS; i++) {
         real_T cd_sim = CD_CONTROLLER_MIN_CD + cdab;
@@ -41,6 +41,11 @@ real_T cd_controller_solve(real_T vel_mps, real_T alt_m, real_T target_m)
         }
         
         real_T new_cdab = cdab - residual / dresidual_dcd;
+
+        if (new_cdab > CD_CONTROLLER_MAX_CD)
+            new_cdab = CD_CONTROLLER_MAX_CD;
+        else if (new_cdab < 0)
+            new_cdab = 0;
         
         if (absr(new_cdab - cdab) < CD_CONTROLLER_TOLERANCE) {
             cdab = new_cdab;
