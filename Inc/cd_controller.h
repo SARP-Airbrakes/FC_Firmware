@@ -21,7 +21,7 @@ typedef double real_T;
 #define CD_CONTROLLER_GRAVITY r(9.81) // acceleration due to gravity (m/s^2)
 
 #define CD_CONTROLLER_MAX_CD r(1.601) // maximum possible CD (extended)
-#define CD_CONTROLLER_MIN_CD r(0.4878) // minimum possible CD (retracted)
+#define CD_CONTROLLER_MIN_CD r(0.725) // minimum possible CD (retracted)
 #define CD_CONTROLLER_RANGE (CD_CONTROLLER_MAX_CD - CD_CONTROLLER_MIN_CD)
 
 #define CD_CONTROLLER_MAX_VEL r(210) // maximum velocity (m/s)
