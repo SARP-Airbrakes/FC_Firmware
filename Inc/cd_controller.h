@@ -24,8 +24,11 @@ typedef double real_T;
 #define CD_CONTROLLER_MIN_CD r(0.4878) // minimum possible CD (retracted)
 #define CD_CONTROLLER_RANGE (CD_CONTROLLER_MAX_CD - CD_CONTROLLER_MIN_CD)
 
+#define CD_CONTROLLER_MAX_VEL r(210) // maximum velocity (m/s)
+#define CD_CONTROLLER_MIN_ALT r(6000) // minimum altitude for activation (m)
 #define CD_CONTROLLER_MAX_ITERS 30
 #define CD_CONTROLLER_TOLERANCE r(1e-3)
+#define CD_CONTROLLER_K_TOLERANCE r(1e-9)
 #define CD_CONTROLLER_DEADZONE r(1e-6)
 
 #ifdef __cplusplus
