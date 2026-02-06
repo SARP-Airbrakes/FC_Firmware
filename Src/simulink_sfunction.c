@@ -15,12 +15,7 @@ static void mdlInitializeSizes(SimStruct *S)
         ssSetInputPortDirectFeedThrough(S, i, 1);
     }
 
-    ssSetInputPortName(S, 0, "V");
-    ssSetInputPortName(S, 1, "X");
-    ssSetInputPortName(S, 2, "tgt_alt");
-
     ssSetOutputPortWidth(S, 0, 1);
-    ssSetOutputPortName(S, 0, "Cd");
 
     ssSetNumSampleTimes(S, 1);
 }
