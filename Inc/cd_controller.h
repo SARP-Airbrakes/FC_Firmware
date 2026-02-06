@@ -5,16 +5,17 @@
 #ifdef CD_CONTROLLER_FLOAT
 typedef float real_T;
 #define r(x) x ## f
+#define absr(x) fabsf(x)
 #define powr(x,y) powf(x,y)
 #define logr(x) logf(x)
 #else
 typedef double real_T;
 #define r(x) x
+#define absr(x) fabs(x)
 #define powr(x,y) pow(x,y)
 #define logr(x) log(x)
 #endif
 
-#define absr(x) (x < 0 ? -x : x)
 
 // Physical Constants
 #define CD_CONTROLLER_AREA r(0.01824146924750467) 
