@@ -28,6 +28,10 @@ typedef double real_T;
 #define CD_CONTROLLER_TOLERANCE r(1e-3)
 #define CD_CONTROLLER_DEADZONE r(1e-6)
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
 /**
  * Finds the best Cd value to reach a target altitude given current inertial
  * parameters, assuming that the airbrakes are ready to be deployed.
@@ -37,5 +41,9 @@ typedef double real_T;
  * target_m is the target altitude in m
  */
 real_T cd_controller_solve(real_T vel_mps, real_T alt_m, real_T target_m);
+
+#ifdef __cplusplus
+};
+#endif // __cplusplus
 
 #endif // CD_CONTROLLER_H_
