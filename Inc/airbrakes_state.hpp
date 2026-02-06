@@ -3,6 +3,7 @@
 #define AIRBRAKES_STATE_H_
 
 #include <sdk/i2c.h>
+#include <sdk/drivers/motor_controller.h>
 #include <sdk/drivers/bmi088.h>
 #include <sdk/drivers/bmp390.h>
 
@@ -11,10 +12,16 @@
  */
 struct airbrakes_state {
 
+    /** 
+     * States of a finite state machine representing the Airbrakes actuation
+     * requirements.
+     */
     enum class state {
-        OFF, /* v < mach 0.7 */
-        DEPLOYING, /* v > mach 0.7 */
-        DEPLOYED, /* motors are off */
+        UNARMED, /* unarmed. needs human input */
+        IDLE_PAD, /* idle, on pad */
+        IDLE_FLIGHT, /* idle, during flight */
+        ACTIVE_FLIGHT, /* active control, during flight */
+        IDLE_RECOVERY, /* idle, after flight (recov.) */
     };
 
     /**
@@ -22,12 +29,17 @@ struct airbrakes_state {
      */
     airbrakes_state(sdk::i2c_master i2c1);
 
-    /** Fat update */
-    void update();
+    /** Arms the airbrakes. */
+    void arm();
+
+    /** Finite state machine step */
+    void step();
 
     /* updates internal driver states */
     void refresh_imu();
     void refresh_baro();
+
+    state current_state;
 
     sdk::bmi088 imu;
     sdk::bmp390 baro;

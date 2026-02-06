@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #ifdef __cplusplus
-#include <airbrakes_state.h>
+#include <airbrakes_state.hpp>
 #endif // __cplusplus
 
 #ifdef __cplusplus
