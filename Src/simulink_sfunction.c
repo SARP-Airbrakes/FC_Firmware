@@ -42,7 +42,7 @@ static void mdlOutputs(SimStruct *S, int_T tid)
     real_T* Cd = ssGetOutputPortRealSignal(S, 0);
 
     // ------------------ MATLAB Gate Logic ------------------
-    if (!(vel_mps < r(210.0) && currentTime > r(10.0) && alt_m > r(6000.0))) {
+    if (!(*V < r(210.0) && *time > r(10.0) && *X > r(6000.0))) {
         *Cd = cd_controller_solve(*V, *X, *tgt_alt, *time);
     } else {
         *Cd = CD_CONTROLLER_MIN_CD;
