@@ -11,6 +11,8 @@ void airbrakes_state::arm()
         current_state = state::IDLE_PAD;
 }
 
+// separate into a ::next() function which returns the next state in the FSM
+// based on current driver states
 void airbrakes_state::step()
 {
     switch (current_state) {

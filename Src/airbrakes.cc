@@ -5,7 +5,6 @@
 #include <sdk/i2c.h>
 #include <sdk/spi.h>
 #include <sdk/unique_pin.h>
-#include <sdk/drivers/w25q16jv.h>
 
 #include <usbd_cdc_if.h>
 #include <main.h>

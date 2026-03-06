@@ -468,14 +468,11 @@ void start_controller(void *argument)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-  // const uint8_t buf[] = "Hello, world!\r\n";
   
   airbrakes_print_prompt();
 
   for(;;)
   {
-    // CDC_Transmit_FS((uint8_t *) buf, sizeof(buf) - 1);
-    //testing_test_and_print();
     osDelay(1000);
   }
   /* USER CODE END 5 */
