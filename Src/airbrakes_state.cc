@@ -1,56 +1,81 @@
 
 #include <airbrakes_state.hpp>
 
-airbrakes_state::airbrakes_state(sdk::i2c_master i2c1) : imu(i2c1), baro(i2c1)
+airbrakes_state::airbrakes_state(bmi088 &&imu, bmp390 &&baro, cdpa1616d &&gps,
+        w25q128jv &&flash, motor_controller &&servo) :
+    imu(std::forward<bmi088>(imu)), baro(std::forward<bmp390>(baro)),
+    gps(std::forward<cdpa1616d>(gps)), flash(std::forward<w25q128jv>(flash)),
+    servo(std::forward<motor_controller>(servo))
 {
+    auto state = imu.copy_state();
+    acceleration = state.acceleration_ms2;
+    last_acceleration = state.acceleration_ms2;
 }
 
-void airbrakes_state::arm()
-{
-    if (current_state == state::UNARMED)
-        current_state = state::IDLE_PAD;
-}
-
-// separate into a ::next() function which returns the next state in the FSM
-// based on current driver states
-void airbrakes_state::step()
+std::optional<airbrakes_state::state> airbrakes_state::next() const
 {
     switch (current_state) {
-    case state::UNARMED:
-        /**
-         * Nothing should happen here. We should wait until manual input.
-         */
-        break;
     case state::IDLE_PAD:
         /* 
          * TODO: There should be one state transition: IDLE_PAD -> IDLE_FLIGHT.
          * This transition should occur on launch - this could be as simple as
          * detecting a new acceleration (delta acceleration > 0?)
          */
-        break;
+        {
+            vec3 diff = acceleration - last_acceleration;
+            if (diff.length_sqr() > IDLE_FLIGHT_MIN_JERK)
+                return state::IDLE_FLIGHT;
+        }
+        return std::nullopt;
     case state::IDLE_FLIGHT:
         /**
          * TODO: There should be one state transition: IDLE_FLIGHT ->
          * ACTIVE_FLIGHT. This transition should occur as soon as we detect that
          * the velocity drops below Mach 0.7.
          */
-        break;
+        return std::nullopt;
     case state::ACTIVE_FLIGHT:
         /**
          * TODO: There should be one state transition: ACTIVE_FLIGHT ->
          * IDLE_RECOVERY. This transition should occur in two situations:
-         *  1. low enough altitude, incorrect orientation, etc. Unknown
+         *  1. low enough altitude, incorrect orientation, etc or unknown
          *  regulatory failure that requires immediate de-actuation; and
          *  2. the rocket, when at the base Cd, is found to be at or below the
          *  target apogee.
          */
-        break;
+        return std::nullopt;
+
+    // Both of these states require manual input to exit.
+    case state::UNARMED:
     case state::IDLE_RECOVERY:
-        /**
-         * There should be no state transitions out of this state. This
-         * state should remain until the flight controller is restarted. 
-         */
-        break;
+        return std::nullopt;
+    }
+}
+
+void airbrakes_state::execute()
+{
+    
+}
+
+void airbrakes_state::step()
+{
+    // Copy states and grab measurements from drivers.
+    {
+        auto imu_state = imu.copy_state();
+        acceleration = imu_state.acceleration_ms2;
+    }
+
+    // Switch the state if state transition is found.
+    auto next_step = next();
+    if (next_step.has_value())
+        current_state = *next_step;
+    
+    // Execute the new state.
+    execute();
+
+    // Post-processing steps.
+    {
+        last_acceleration = acceleration;
     }
 }
 

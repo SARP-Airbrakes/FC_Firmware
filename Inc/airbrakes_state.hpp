@@ -2,15 +2,23 @@
 #ifndef AIRBRAKES_STATE_H_
 #define AIRBRAKES_STATE_H_
 
-#include <sdk/i2c.h>
+#include <optional>
+
 #include <sdk/drivers/motor_controller.h>
 #include <sdk/drivers/bmi088.h>
 #include <sdk/drivers/bmp390.h>
+#include <sdk/drivers/cdpa1616d.h>
+#include <sdk/drivers/w25q128jv.h>
+
+using namespace sdk;
 
 /**
  * This class represents the Airbrakes controller state.
  */
 struct airbrakes_state {
+    
+    // Minimum jerk for a transition from IDLE_PAD -> IDLE_FLIGHT
+    static constexpr real IDLE_FLIGHT_MIN_JERK = 10.0f;
 
     /** 
      * States of a finite state machine representing the Airbrakes actuation
@@ -25,14 +33,24 @@ struct airbrakes_state {
     };
 
     /**
-     * Initializes the airbrakes controller state.
+     * Initializes the airbrakes controller state. Assumes that the drivers are
+     * already properly initialized when moved.
      */
-    airbrakes_state(sdk::i2c_master i2c1);
+    airbrakes_state(bmi088 &&imu, bmp390 &&baro, cdpa1616d &&gps, w25q128jv
+            &&flash, motor_controller &&servo);
 
-    /** Arms the airbrakes. */
-    void arm();
+    /**
+     * Calculates the next state in the finite state machine based on the rocket
+     * state. If we aren't going to transition this step, returns nullopt.
+     */
+    std::optional<state> next() const;
 
-    /** Finite state machine step */
+    /**
+     * Executes the current state of the finite state machine.
+     */
+    void execute();
+
+    /** Calls #next() to check for a new state, then calls #execute() */
     void step();
 
     /* updates internal driver states */
@@ -41,8 +59,14 @@ struct airbrakes_state {
 
     state current_state;
 
-    sdk::bmi088 imu;
-    sdk::bmp390 baro;
+    bmi088 imu;
+    bmp390 baro;
+    cdpa1616d gps;
+    w25q128jv flash;
+    motor_controller servo;
+
+    vec3 acceleration;
+    vec3 last_acceleration;
 };
 
 #endif // AIRBRAKES_STATE_H_
