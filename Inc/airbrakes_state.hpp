@@ -28,6 +28,11 @@ struct airbrakes_state {
     // of flap deflection.
     static constexpr real MOTOR_DEGREE_PER_FLAP_DEGREE = 0.0f;
 
+    // Frequency in which flight data is logged in idle modes, in Hz
+    static constexpr real IDLE_LOGGING_FREQ = 1.0f;
+    // Frequency in which flight data is logged in active mode, in Hz
+    static constexpr real ACTIVE_LOGGING_FREQ = 10.0f;
+    
     /** 
      * States of a finite state machine representing the Airbrakes actuation
      * requirements.
@@ -65,6 +70,11 @@ struct airbrakes_state {
     void refresh_imu();
     void refresh_baro();
 
+    /** 
+     * Commits the current rocket state to a new packet written to the flash.
+     */
+    void log();
+
     state current_state;
 
     bmi088 imu;
@@ -75,6 +85,7 @@ struct airbrakes_state {
 
     real time;
     real last_time;
+    real last_log;
     real delta_time;
     real altitude;
     real target_altitude;

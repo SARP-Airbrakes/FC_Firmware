@@ -20,9 +20,7 @@ std::optional<airbrakes_state::state> airbrakes_state::next() const
     switch (current_state) {
     case state::IDLE_PAD:
         /* 
-         * TODO: There should be one state transition: IDLE_PAD -> IDLE_FLIGHT.
-         * This transition should occur on launch - this could be as simple as
-         * detecting a new acceleration (delta acceleration > 0?)
+         * This transition should occur on launch.
          */
         {
             vec3 diff = acceleration - last_acceleration;
@@ -32,26 +30,24 @@ std::optional<airbrakes_state::state> airbrakes_state::next() const
         return std::nullopt;
     case state::IDLE_FLIGHT:
         /**
-         * TODO: There should be one state transition: IDLE_FLIGHT ->
-         * ACTIVE_FLIGHT. This transition should occur as soon as we detect that
-         * the velocity drops below Mach 0.7.
+         * This transition should occur as soon as we detect that the velocity
+         * drops below Mach 0.7.
          */
         if (velocity.length_sqr() < ACTIVE_FLIGHT_MAX_VELOCITY_SQR)
             return state::ACTIVE_FLIGHT;
         return std::nullopt;
     case state::ACTIVE_FLIGHT:
         /**
-         * TODO: There should be one state transition: ACTIVE_FLIGHT ->
-         * IDLE_RECOVERY. This transition should occur in two situations:
-         *  1. low enough altitude, incorrect orientation, etc or unknown
-         *  regulatory failure that requires immediate de-actuation; and
-         *  2. the rocket, when at the base Cd, is found to be at or below the
-         *  target apogee.
+         * This transition should occur when the rocket is at a low enough
+         * altitude, incorrect orientation, etc or there was some unknown
+         * regulatory failure that requires immediate de-actuation.
          */
-
         if (velocity.length_sqr() > ACTIVE_FLIGHT_MAX_VELOCITY_SQR || 
                 altitude < IDLE_RECOVERY_MAX_ALTITUDE)
             return state::IDLE_RECOVERY;
+
+        // TODO: Also should transition when the rocket, when at the base Cd, is
+        // found to be at or below the target apogee using the ballistic model.
         return std::nullopt;
 
     // Both of these states require manual input to exit.
@@ -69,13 +65,25 @@ real get_flap_deflection(real cd) {
 
 void airbrakes_state::execute()
 {
-    // enforce closed state when we are not in active flight
+    // Actual air-brakes control logic.
     if (current_state != state::ACTIVE_FLIGHT) {
+        // Enforce closed state when we are not in active flight
         servo.set_target_degrees(0);
     } else if (current_state == state::ACTIVE_FLIGHT) {
         real target_cd = cd_controller_solve(velocity.length_sqr(), altitude, target_altitude);
         real flap_deflection = get_flap_deflection(target_cd);
         servo.set_target_degrees(flap_deflection * MOTOR_DEGREE_PER_FLAP_DEGREE);
+    }
+
+    // Flight logging logic.
+    if (current_state != state::UNARMED) {
+        real frequency = current_state == state::ACTIVE_FLIGHT ? 
+            ACTIVE_LOGGING_FREQ : 
+            IDLE_LOGGING_FREQ;
+        if (time - last_log > 1.0f / frequency) {
+            log();
+            last_log = time;
+        }
     }
 }
 
@@ -130,4 +138,9 @@ void airbrakes_state::refresh_imu()
 void airbrakes_state::refresh_baro()
 {
     baro.update();
+}
+
+void airbrakes_state::log()
+{
+    // TODO
 }
