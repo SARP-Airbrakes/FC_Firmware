@@ -19,6 +19,14 @@ struct airbrakes_state {
     
     // Minimum jerk for a transition from IDLE_PAD -> IDLE_FLIGHT
     static constexpr real IDLE_FLIGHT_MIN_JERK = 10.0f;
+    // Maximum rocket velocity where we can actuate motor. Mach 0.7
+    static constexpr real ACTIVE_FLIGHT_MAX_VELOCITY = 230.0f;
+    static constexpr real ACTIVE_FLIGHT_MAX_VELOCITY_SQR =
+        ACTIVE_FLIGHT_MAX_VELOCITY * ACTIVE_FLIGHT_MAX_VELOCITY;
+    static constexpr real IDLE_RECOVERY_MAX_ALTITUDE = 1000.0f;
+    // This value is the ratio between motor shaft turning over one (1) degree
+    // of flap deflection.
+    static constexpr real MOTOR_DEGREE_PER_FLAP_DEGREE = 0.0f;
 
     /** 
      * States of a finite state machine representing the Airbrakes actuation
@@ -65,6 +73,13 @@ struct airbrakes_state {
     w25q128jv flash;
     motor_controller servo;
 
+    real time;
+    real last_time;
+    real delta_time;
+    real altitude;
+    real target_altitude;
+
+    vec3 velocity;
     vec3 acceleration;
     vec3 last_acceleration;
 };

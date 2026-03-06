@@ -35,7 +35,7 @@ typedef double real_T;
 extern "C" {
 #endif
 
-real_T cd_controller_solve(real_T vel_mps, real_T alt_m, real_T target_m);
+real_T cd_controller_solve(real_T vel_sqr_m2ps2, real_T alt_m, real_T target_m);
 
 #ifdef __cplusplus
 };
