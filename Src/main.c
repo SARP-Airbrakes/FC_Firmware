@@ -54,36 +54,41 @@ UART_HandleTypeDef huart1;
 osThreadId_t controller_taskHandle;
 const osThreadAttr_t controller_task_attributes = {
   .name = "controller_task",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for imu_driver_task */
-osThreadId_t imu_driver_taskHandle;
-const osThreadAttr_t imu_driver_task_attributes = {
-  .name = "imu_driver_task",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityBelowNormal,
-};
-/* Definitions for inc_driver_task */
-osThreadId_t inc_driver_taskHandle;
-const osThreadAttr_t inc_driver_task_attributes = {
-  .name = "inc_driver_task",
-  .stack_size = 128 * 4,
+/* Definitions for flash_task */
+osThreadId_t flash_taskHandle;
+const osThreadAttr_t flash_task_attributes = {
+  .name = "flash_task",
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
-/* Definitions for alt_driver_task */
-osThreadId_t alt_driver_taskHandle;
-const osThreadAttr_t alt_driver_task_attributes = {
-  .name = "alt_driver_task",
-  .stack_size = 128 * 4,
+/* Definitions for imu_task */
+osThreadId_t imu_taskHandle;
+const osThreadAttr_t imu_task_attributes = {
+  .name = "imu_task",
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
-/* Definitions for fsh_driver_task */
-osThreadId_t fsh_driver_taskHandle;
-const osThreadAttr_t fsh_driver_task_attributes = {
-  .name = "fsh_driver_task",
-  .stack_size = 128 * 4,
+/* Definitions for baro_task */
+osThreadId_t baro_taskHandle;
+const osThreadAttr_t baro_task_attributes = {
+  .name = "baro_task",
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for gps_task */
+osThreadId_t gps_taskHandle;
+const osThreadAttr_t gps_task_attributes = {
+  .name = "gps_task",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for sensor_semaphore */
+osSemaphoreId_t sensor_semaphoreHandle;
+const osSemaphoreAttr_t sensor_semaphore_attributes = {
+  .name = "sensor_semaphore"
 };
 /* USER CODE BEGIN PV */
 
@@ -96,11 +101,11 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_USART1_UART_Init(void);
-void start_controller(void *argument);
-void start_imu_driver(void *argument);
-void start_inc_driver(void *argument);
-void start_alt_driver(void *argument);
-void start_fsh_driver(void *argument);
+void controller_loop(void *argument);
+void flash_update(void *argument);
+void imu_update(void *argument);
+void baro_update(void *argument);
+void gps_update(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -158,6 +163,10 @@ int main(void)
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* creation of sensor_semaphore */
+  sensor_semaphoreHandle = osSemaphoreNew(1, 0, &sensor_semaphore_attributes);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
@@ -172,19 +181,19 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of controller_task */
-  controller_taskHandle = osThreadNew(start_controller, (void*) state_handle, &controller_task_attributes);
+  controller_taskHandle = osThreadNew(controller_loop, NULL, &controller_task_attributes);
 
-  /* creation of imu_driver_task */
-  imu_driver_taskHandle = osThreadNew(start_imu_driver, (void*) state_handle, &imu_driver_task_attributes);
+  /* creation of flash_task */
+  flash_taskHandle = osThreadNew(flash_update, NULL, &flash_task_attributes);
 
-  /* creation of inc_driver_task */
-  inc_driver_taskHandle = osThreadNew(start_inc_driver, (void*) state_handle, &inc_driver_task_attributes);
+  /* creation of imu_task */
+  imu_taskHandle = osThreadNew(imu_update, NULL, &imu_task_attributes);
 
-  /* creation of alt_driver_task */
-  alt_driver_taskHandle = osThreadNew(start_alt_driver, (void*) state_handle, &alt_driver_task_attributes);
+  /* creation of baro_task */
+  baro_taskHandle = osThreadNew(baro_update, NULL, &baro_task_attributes);
 
-  /* creation of fsh_driver_task */
-  fsh_driver_taskHandle = osThreadNew(start_fsh_driver, (void*) state_handle, &fsh_driver_task_attributes);
+  /* creation of gps_task */
+  gps_taskHandle = osThreadNew(gps_update, NULL, &gps_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -438,7 +447,6 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -469,35 +477,27 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(CS_FLASH_GPIO_Port, &GPIO_InitStruct);
 
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_GPIO_EXTI_Callback(uint16_t pin)
-{
-}
 
-void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-    airbrakes_i2c_interrupt((void *) hi2c->hdmatx);
-}
-
-void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-    airbrakes_i2c_interrupt((void *) hi2c->hdmatx);
-}
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_start_controller */
+/* USER CODE BEGIN Header_controller_loop */
 /**
   * @brief  Function implementing the controller_task thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_start_controller */
-void start_controller(void *argument)
+/* USER CODE END Header_controller_loop */
+void controller_loop(void *argument)
 {
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
@@ -513,76 +513,85 @@ void start_controller(void *argument)
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_start_imu_driver */
+/* USER CODE BEGIN Header_flash_update */
 /**
-* @brief Function implementing the imu_driver_task thread.
+* @brief Function implementing the flash_task thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_start_imu_driver */
-void start_imu_driver(void *argument)
+/* USER CODE END Header_flash_update */
+void flash_update(void *argument)
 {
-  /* USER CODE BEGIN start_imu_driver */
+  /* USER CODE BEGIN flash_update */
   /* Infinite loop */
   for(;;)
   {
+    osSemaphoreAcquire(sensor_semaphoreHandle, osWaitForever);
+    osSemaphoreRelease(sensor_semaphoreHandle);
+
     osDelay(1);
   }
-  /* USER CODE END start_imu_driver */
+  /* USER CODE END flash_update */
 }
 
-/* USER CODE BEGIN Header_start_inc_driver */
+/* USER CODE BEGIN Header_imu_update */
 /**
-* @brief Function implementing the inc_driver_task thread.
+* @brief Function implementing the imu_task thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_start_inc_driver */
-void start_inc_driver(void *argument)
+/* USER CODE END Header_imu_update */
+void imu_update(void *argument)
 {
-  /* USER CODE BEGIN start_inc_driver */
+  /* USER CODE BEGIN imu_update */
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osSemaphoreAcquire(sensor_semaphoreHandle, osWaitForever);
+    osSemaphoreRelease(sensor_semaphoreHandle);
+
+    osDelay(40);
   }
-  /* USER CODE END start_inc_driver */
+  /* USER CODE END imu_update */
 }
 
-/* USER CODE BEGIN Header_start_alt_driver */
+/* USER CODE BEGIN Header_baro_update */
 /**
-* @brief Function implementing the alt_driver_task thread.
+* @brief Function implementing the baro_task thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_start_alt_driver */
-void start_alt_driver(void *argument)
+/* USER CODE END Header_baro_update */
+void baro_update(void *argument)
 {
-  /* USER CODE BEGIN start_alt_driver */
+  /* USER CODE BEGIN baro_update */
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osSemaphoreAcquire(sensor_semaphoreHandle, osWaitForever);
+    osSemaphoreRelease(sensor_semaphoreHandle);
+
+    osDelay(40);
   }
-  /* USER CODE END start_alt_driver */
+  /* USER CODE END baro_update */
 }
 
-/* USER CODE BEGIN Header_start_fsh_driver */
+/* USER CODE BEGIN Header_gps_update */
 /**
-* @brief Function implementing the fsh_driver_task thread.
+* @brief Function implementing the gps_task thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_start_fsh_driver */
-void start_fsh_driver(void *argument)
+/* USER CODE END Header_gps_update */
+void gps_update(void *argument)
 {
-  /* USER CODE BEGIN start_fsh_driver */
+  /* USER CODE BEGIN gps_update */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END start_fsh_driver */
+  /* USER CODE END gps_update */
 }
 
 /**

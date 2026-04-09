@@ -24,7 +24,8 @@ extern airbrakes_state_handle_t state_handle;
 void airbrakes_initialize(void);
 
 void airbrakes_print_prompt(void);
-void airbrakes_cli_receive(uint8_t *buf, uint32_t *len);
+void airbrakes_cli_receive(uint8_t *buf, uint32_t len);
+void airbrakes_flash_pop_and_write(void);
 
 void airbrakes_i2c_interrupt(void *hdmatx);
 

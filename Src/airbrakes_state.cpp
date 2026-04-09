@@ -70,10 +70,37 @@ std::optional<airbrakes_state::state> airbrakes_state::next() const
     }
 }
 
+static constexpr std::array<std::pair<int, float>, 10> FLAP_DEFLECTION_TO_CD = {{
+    { 0, 0.661, },
+    { 5, 0.661, },
+    { 10, 0.764, },
+    { 15, 0.8775, },
+    { 20, 1.042, },
+    { 25, 1.167, },
+    { 30, 1.322, },
+    { 35, 1.485, },
+    { 40, 1.630, },
+    { 45, 1.834, },
+}};
 
 // TODO: implemenet flap deflection LUT
-real get_flap_deflection(real cd) {
-    return 0.0f;
+real get_flap_deflection(real target_cd) {
+    if (target_cd < FLAP_DEFLECTION_TO_CD.front().second)
+        return 0;
+    if (target_cd > FLAP_DEFLECTION_TO_CD.back().second)
+        return 45;
+    for (size_t i = 0; i < FLAP_DEFLECTION_TO_CD.size() - 1; i++) {
+        const std::pair<int, float> &first_pair = FLAP_DEFLECTION_TO_CD[i];
+        const std::pair<int, float> &second_pair = FLAP_DEFLECTION_TO_CD.at(i + 1);
+        if (first_pair.second <= target_cd && second_pair.second >= target_cd) {
+            return static_cast<float>(first_pair.first) +
+                (static_cast<float>(second_pair.first) -
+                 static_cast<float>(first_pair.first)) * ((target_cd -
+                     first_pair.second) / (second_pair.second -
+                         first_pair.second));
+        }
+    }
+    return 0;
 }
 
 void airbrakes_state::execute()

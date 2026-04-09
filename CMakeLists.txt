@@ -49,9 +49,10 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    Src/airbrakes.cpp
+    Src/airbrakes_state.cpp
     Src/cd_controller.c
-    Src/airbrakes.cc
-    Src/airbrakes_state.cc
+    Src/cli.cpp
 )
 
 # Add include paths
