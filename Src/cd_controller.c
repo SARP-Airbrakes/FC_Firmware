@@ -2,8 +2,13 @@
 #include "cd_controller.h"
 #include <math.h>
 
-real_T cd_controller_solve(real_T vel_sqr_m2ps2, real_T alt_m, real_T target_m)
+real_T cd_controller_solve(real_T vel_mps, real_T alt_m, real_T target_m)
 {
+    // ------------------ Gate Solver (match MATLAB) ------------------
+    if (!(vel_mps < r(210.0) && vel_mps > r(0.0))) {
+        return CD_CONTROLLER_MIN_CD;
+    }
+
     // ------------------ ISA Atmosphere ------------------
     real_T temp = r(15.04) - r(0.00649) * alt_m + r(273.1);
     real_T press = r(101.29) * powr(temp / r(288.08), r(5.256));
@@ -19,9 +24,10 @@ real_T cd_controller_solve(real_T vel_sqr_m2ps2, real_T alt_m, real_T target_m)
         real_T k = r(0.5) * density * cd_curr * CD_CONTROLLER_AREA;
         if (k < r(1e-9)) k = r(1e-9);
 
+        real_T v2 = vel_mps * vel_mps;
         real_T mg = CD_CONTROLLER_MASS * CD_CONTROLLER_GRAVITY;
 
-        real_T term2 = (k * vel_sqr_m2ps2 / mg) + r(1.0);
+        real_T term2 = (k * v2 / mg) + r(1.0);
         real_T term1 = logr(term2);
 
         // Apogee prediction
@@ -33,7 +39,7 @@ real_T cd_controller_solve(real_T vel_sqr_m2ps2, real_T alt_m, real_T target_m)
         // Derivative d(apogee)/dk
         real_T dalt_dk =
             -CD_CONTROLLER_MASS * term1 / (r(2.0) * k * k) +
-             (CD_CONTROLLER_MASS / (r(2.0) * k)) * (vel_sqr_m2ps2 / mg) / term2;
+             (CD_CONTROLLER_MASS / (r(2.0) * k)) * (v2 / mg) / term2;
 
         // Chain rule: d(apogee)/dCd
         real_T dk_dcd = r(0.5) * density * CD_CONTROLLER_AREA;

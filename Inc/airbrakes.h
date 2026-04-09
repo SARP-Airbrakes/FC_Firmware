@@ -3,6 +3,7 @@
 #define AIRBRAKES_H_
 
 #include <stdint.h>
+#include <main.h>
 
 #ifdef __cplusplus
 #include <airbrakes_state.hpp>
@@ -11,6 +12,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern I2C_HandleTypeDef hi2c1;
+extern SPI_HandleTypeDef hspi1;
+extern UART_HandleTypeDef huart1;
+extern TIM_HandleTypeDef htim2;
 
 typedef struct airbrakes_state *airbrakes_state_handle_t;
 extern airbrakes_state_handle_t state_handle;

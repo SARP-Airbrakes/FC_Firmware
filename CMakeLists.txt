@@ -49,9 +49,9 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-    Src/tests/sdk_w25q128jv.cc
+    Src/cd_controller.c
     Src/airbrakes.cc
-    Src/testing.cc
+    Src/airbrakes_state.cc
 )
 
 # Add include paths

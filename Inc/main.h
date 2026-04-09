@@ -37,9 +37,6 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
-extern SPI_HandleTypeDef hspi1;
-extern I2C_HandleTypeDef hi2c1;
-
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -68,10 +65,10 @@ void Error_Handler(void);
 #define LED_R_GPIO_Port GPIOB
 #define LED_B_Pin GPIO_PIN_10
 #define LED_B_GPIO_Port GPIOB
-#define EXTI_CH_A_Pin GPIO_PIN_14
-#define EXTI_CH_A_GPIO_Port GPIOB
-#define EXTI_CH_B_Pin GPIO_PIN_15
-#define EXTI_CH_B_GPIO_Port GPIOB
+#define ENCODER1_Pin GPIO_PIN_14
+#define ENCODER1_GPIO_Port GPIOB
+#define ENCODER2_Pin GPIO_PIN_15
+#define ENCODER2_GPIO_Port GPIOB
 #define CS_FLASH_Pin GPIO_PIN_9
 #define CS_FLASH_GPIO_Port GPIOA
 

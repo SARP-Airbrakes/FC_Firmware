@@ -23,6 +23,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 #include <airbrakes.h>
+#include <string.h>
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -263,7 +264,10 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   /* USER CODE BEGIN 6 */
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
-  airbrakes_cli_receive(Buf, Len);
+
+  airbrakes_cli_receive(UserRxBufferFS, *Len);
+  memcpy();
+
   return (USBD_OK);
   /* USER CODE END 6 */
 }

@@ -4,6 +4,19 @@
 #include <sdk/timing.h>
 #include <cd_controller.h>
 
+struct flight_packet {
+    int packet_id;
+    float time_s;
+    float accel_x_mps2;
+    float accel_y_mps2;
+    float accel_z_mps2;
+    float altitude_m;
+    float pressure_pascals;
+    float temperature_c;
+    float gps_altitude_m;
+    int fix_status;
+};
+
 airbrakes_state::airbrakes_state(bmi088 &&imu, bmp390 &&baro, cdpa1616d &&gps,
         w25q128jv &&flash, motor_controller &&servo) :
     imu(std::forward<bmi088>(imu)), baro(std::forward<bmp390>(baro)),
