@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <airbrakes.h>
+#include <cli.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -85,6 +86,20 @@ const osThreadAttr_t gps_task_attributes = {
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+/* Definitions for usb_task */
+osThreadId_t usb_taskHandle;
+const osThreadAttr_t usb_task_attributes = {
+  .name = "usb_task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for motor_task */
+osThreadId_t motor_taskHandle;
+const osThreadAttr_t motor_task_attributes = {
+  .name = "motor_task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Definitions for sensor_semaphore */
 osSemaphoreId_t sensor_semaphoreHandle;
 const osSemaphoreAttr_t sensor_semaphore_attributes = {
@@ -106,6 +121,8 @@ void flash_update(void *argument);
 void imu_update(void *argument);
 void baro_update(void *argument);
 void gps_update(void *argument);
+void usb_loop(void *argument);
+void motor_update(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -157,7 +174,7 @@ int main(void)
   osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
-
+  //cli_init();
   airbrakes_initialize();
 
   /* add mutexes, ... */
@@ -194,6 +211,12 @@ int main(void)
 
   /* creation of gps_task */
   gps_taskHandle = osThreadNew(gps_update, NULL, &gps_task_attributes);
+
+  /* creation of usb_task */
+  usb_taskHandle = osThreadNew(usb_loop, NULL, &usb_task_attributes);
+
+  /* creation of motor_task */
+  motor_taskHandle = osThreadNew(motor_update, NULL, &motor_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -417,7 +440,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 9600;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -447,6 +470,7 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -457,17 +481,17 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CS_FLASH_GPIO_Port, CS_FLASH_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pins : ENCODER1_Pin ENCODER2_Pin */
+  GPIO_InitStruct.Pin = ENCODER1_Pin|ENCODER2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
   /*Configure GPIO pins : LED_G_Pin LED_R_Pin LED_B_Pin */
   GPIO_InitStruct.Pin = LED_G_Pin|LED_R_Pin|LED_B_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : ENCODER1_Pin ENCODER2_Pin */
-  GPIO_InitStruct.Pin = ENCODER1_Pin|ENCODER2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : CS_FLASH_Pin */
@@ -502,13 +526,24 @@ void controller_loop(void *argument)
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
+
+  HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LED_B_GPIO_Port, LED_B_Pin, GPIO_PIN_SET);
+
+  airbrakes_imu_update();
+  airbrakes_start();
+
   /* Infinite loop */
-  
-  airbrakes_print_prompt();
+
+  osSemaphoreRelease(sensor_semaphoreHandle);
 
   for(;;)
   {
-    osDelay(1000);
+    //cli_poll();
+    airbrakes_step();
+    
+    osDelay(10);
   }
   /* USER CODE END 5 */
 }
@@ -526,10 +561,8 @@ void flash_update(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osSemaphoreAcquire(sensor_semaphoreHandle, osWaitForever);
-    osSemaphoreRelease(sensor_semaphoreHandle);
-
-    osDelay(1);
+    airbrakes_flash_pop_and_write();
+    osDelay(40);
   }
   /* USER CODE END flash_update */
 }
@@ -547,8 +580,7 @@ void imu_update(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osSemaphoreAcquire(sensor_semaphoreHandle, osWaitForever);
-    osSemaphoreRelease(sensor_semaphoreHandle);
+    airbrakes_imu_update();
 
     osDelay(40);
   }
@@ -568,8 +600,7 @@ void baro_update(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osSemaphoreAcquire(sensor_semaphoreHandle, osWaitForever);
-    osSemaphoreRelease(sensor_semaphoreHandle);
+    airbrakes_baro_update();
 
     osDelay(40);
   }
@@ -589,9 +620,49 @@ void gps_update(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    airbrakes_blink_leds();
+    osDelay(500);
+    //airbrakes_gps_update();
   }
   /* USER CODE END gps_update */
+}
+
+/* USER CODE BEGIN Header_usb_loop */
+/**
+* @brief Function implementing the usb_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_usb_loop */
+void usb_loop(void *argument)
+{
+  /* USER CODE BEGIN usb_loop */
+  /* Infinite loop */
+  for(;;)
+  {
+    //cli_process_tx();
+    osDelay(1);
+  }
+  /* USER CODE END usb_loop */
+}
+
+/* USER CODE BEGIN Header_motor_update */
+/**
+* @brief Function implementing the motor_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_motor_update */
+void motor_update(void *argument)
+{
+  /* USER CODE BEGIN motor_update */
+  /* Infinite loop */
+  for(;;)
+  {
+    airbrakes_motor_update(0.010f);
+    osDelay(10);
+  }
+  /* USER CODE END motor_update */
 }
 
 /**

@@ -22,10 +22,17 @@ typedef struct airbrakes_state *airbrakes_state_handle_t;
 extern airbrakes_state_handle_t state_handle;
 
 void airbrakes_initialize(void);
+void airbrakes_step(void);
+void airbrakes_start(void);
+void airbrakes_motor_update(float time);
 
-void airbrakes_print_prompt(void);
 void airbrakes_cli_receive(uint8_t *buf, uint32_t len);
 void airbrakes_flash_pop_and_write(void);
+void airbrakes_blink_leds(void);
+
+void airbrakes_gps_update(void);
+void airbrakes_imu_update(void);
+void airbrakes_baro_update(void);
 
 void airbrakes_i2c_interrupt(void *hdmatx);
 

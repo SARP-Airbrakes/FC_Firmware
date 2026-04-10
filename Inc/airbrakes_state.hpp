@@ -10,6 +10,8 @@
 #include <sdk/drivers/cdpa1616d.h>
 #include <sdk/drivers/w25q128jv.h>
 
+#include <cmath>
+
 using namespace sdk;
 
 /**
@@ -18,15 +20,15 @@ using namespace sdk;
 struct airbrakes_state {
     
     // Minimum jerk for a transition from IDLE_PAD -> IDLE_FLIGHT
-    static constexpr real IDLE_FLIGHT_MIN_JERK = 10.0f;
+    static constexpr real IDLE_FLIGHT_MIN_ACCEL = 20.0f;
     // Maximum rocket velocity where we can actuate motor. Mach 0.7
     static constexpr real ACTIVE_FLIGHT_MAX_VELOCITY = 230.0f;
     static constexpr real ACTIVE_FLIGHT_MAX_VELOCITY_SQR =
         ACTIVE_FLIGHT_MAX_VELOCITY * ACTIVE_FLIGHT_MAX_VELOCITY;
     static constexpr real IDLE_RECOVERY_MAX_ALTITUDE = 1000.0f;
-    // This value is the ratio between motor shaft turning over one (1) degree
-    // of flap deflection.
-    static constexpr real MOTOR_DEGREE_PER_FLAP_DEGREE = 0.0f;
+ 
+    static constexpr real TARGET_ALTITUDE = 1646.0f;
+    static constexpr real TIME_THRESHOLD = 60.0f;
 
     // Frequency in which flight data is logged in idle modes, in Hz
     static constexpr real IDLE_LOGGING_FREQ = 1.0f;
@@ -38,11 +40,34 @@ struct airbrakes_state {
      * requirements.
      */
     enum class state {
-        UNARMED, /* unarmed. needs human input */
         IDLE_PAD, /* idle, on pad */
         IDLE_FLIGHT, /* idle, during flight */
         ACTIVE_FLIGHT, /* active control, during flight */
         IDLE_RECOVERY, /* idle, after flight (recov.) */
+    };
+
+    struct flight_packet {
+        int packet_id; /* packet number */
+        float time_s; /* time since flight computer boot */
+        float accel_x_mps2; /* imu accel in x (board-relative) */
+        float accel_y_mps2; /* imu accel in y (board-relative) */
+        float accel_z_mps2; /* imu accel in z (board-relative) */
+
+        float acc_altitude_m; /* altitude found by integrating accel */
+        float baro_altitude_m; /* altitude found with pressure */
+
+        float pressure_pascals; /* pressure */
+        float temperature_c; /* temperature */
+        float gps_altitude_m; /* 0 */
+
+        state current_state;
+        float motor_target_degrees;
+        float motor_actual_degrees;
+        float motor_commanded_power;
+
+        float flap_target_degrees;
+
+        int fix_status;
     };
 
     /**
@@ -58,6 +83,11 @@ struct airbrakes_state {
      */
     std::optional<state> next() const;
 
+    /** get some base values */
+    void init();
+
+    void switch_state(state new_state);
+
     /**
      * Executes the current state of the finite state machine.
      */
@@ -69,13 +99,16 @@ struct airbrakes_state {
     /* updates internal driver states */
     void refresh_imu();
     void refresh_baro();
+    void update_flash();
+
+    flight_packet read_packet(int address);
 
     /** 
      * Commits the current rocket state to a new packet written to the flash.
      */
     void log();
 
-    state current_state;
+    state current_state = state::IDLE_PAD;
 
     bmi088 imu;
     bmp390 baro;
@@ -83,15 +116,27 @@ struct airbrakes_state {
     w25q128jv flash;
     motor_controller servo;
 
+    sdk::queue<flight_packet> flight_packet_queue;
+
+    int packet_count;
+
     real time;
     real last_time;
     real last_log;
     real delta_time;
-    real altitude;
-    real target_altitude;
+    real acc_altitude;
+    real pressure;
+    real reference_altitude;
+    real baro_altitude;
+    real temperature;
+    real last_baro_altitude = NAN;
+    real baro_velocity;
+    real target_altitude = 1646.0f;
+    real flap_target_degrees;
 
     vec3 velocity;
     vec3 acceleration;
+    vec3 filtered_acceleration;
     vec3 last_acceleration;
 };
 

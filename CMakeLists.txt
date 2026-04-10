@@ -41,6 +41,8 @@ add_subdirectory(cmake/stm32cubemx)
 # Add air-brakes sdk
 add_subdirectory(sdk)
 
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -u _printf_float")
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
@@ -53,6 +55,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Src/airbrakes_state.cpp
     Src/cd_controller.c
     Src/cli.cpp
+    Src/selfcheck.cpp
 )
 
 # Add include paths

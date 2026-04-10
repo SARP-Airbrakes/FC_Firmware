@@ -8,7 +8,11 @@
 extern "C" {
 #endif /* __cplusplus */
 
-void cli_receive(char *buf, uint32_t len);
+void cli_init(void);
+void cli_receive(uint8_t *buf, uint32_t len);
+void cli_transmit_completed(void);
+void cli_poll(void);
+void cli_process_tx(void);
 
 #ifdef __cplusplus
 }

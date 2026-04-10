@@ -22,7 +22,7 @@
 #include "usbd_cdc_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-#include <airbrakes.h>
+#include <cli.h>
 #include <string.h>
 /* USER CODE END INCLUDE */
 
@@ -265,7 +265,7 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 
-  airbrakes_cli_receive(UserRxBufferFS, *Len);
+  cli_receive(UserRxBufferFS, *Len);
   memset(UserRxBufferFS, 0, *Len);
 
   return (USBD_OK);
@@ -316,6 +316,8 @@ static int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
   UNUSED(Buf);
   UNUSED(Len);
   UNUSED(epnum);
+
+  cli_transmit_completed();
   /* USER CODE END 13 */
   return result;
 }
