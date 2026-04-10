@@ -54,12 +54,12 @@ void airbrakes_start(void)
     state_handle->imu.set_acc_config(
         sdk::bmi088::acc_range::RANGE_6G,
         sdk::bmi088::acc_bwp::OSR4,
-        sdk::bmi088::acc_odr::ODR_25HZ
+        sdk::bmi088::acc_odr::ODR_100HZ
     );
     state_handle->imu.start();
 
     state_handle->baro.set_config(2);
-    state_handle->baro.set_odr(sdk::bmp390::odr::ODR_25);
+    state_handle->baro.set_odr(sdk::bmp390::odr::ODR_100);
     state_handle->baro.set_osr(
         sdk::bmp390::osr::OSR_4,
         sdk::bmp390::osr::OSR_4

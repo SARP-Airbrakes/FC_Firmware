@@ -27,14 +27,16 @@ void airbrakes_state::init()
     last_acceleration = imu_state.acceleration_ms2;
 }
 
-std::optional<airbrakes_state::state> airbrakes_state::next() const
+std::optional<airbrakes_state::state> airbrakes_state::next()
 {
     switch (current_state) {
     case state::IDLE_PAD:
         /* 
          * This transition should occur on launch.
          */
-        if (acceleration.magnitude_sqr() != 0 && filtered_acceleration.magnitude_sqr() > IDLE_FLIGHT_MIN_ACCEL * IDLE_FLIGHT_MIN_ACCEL)
+        if (acceleration.magnitude_sqr() != 0 &&
+                filtered_acceleration.magnitude_sqr() > IDLE_FLIGHT_MIN_ACCEL * IDLE_FLIGHT_MIN_ACCEL && 
+                fused_velocity > 15.0f)
             return state::IDLE_FLIGHT;
         return std::nullopt;
     case state::IDLE_FLIGHT:
@@ -46,7 +48,7 @@ std::optional<airbrakes_state::state> airbrakes_state::next() const
         if (velocity.magnitude_sqr() < ACTIVE_FLIGHT_MAX_VELOCITY_SQR)
             return state::ACTIVE_FLIGHT;
         */
-        if (acceleration.z < -10.0f)
+        if (filtered_acceleration.z < -10.0f)
             return state::ACTIVE_FLIGHT;
         return std::nullopt;
     case state::ACTIVE_FLIGHT:
@@ -55,8 +57,15 @@ std::optional<airbrakes_state::state> airbrakes_state::next() const
          * altitude, incorrect orientation, etc or there was some unknown
          * regulatory failure that requires immediate de-actuation.
          */
-        if (velocity.z < -5.0f)
-            return state::IDLE_RECOVERY;
+        if (fused_velocity < -1.0f) {
+            if (state_time != 0 && time - state_time >= 0.5f) {
+                return state::IDLE_RECOVERY;
+            } else if (state_time == 0) {
+                state_time = time;
+            }
+        } else {
+            state_time = 0;
+        }
 
         // TODO: Also should transition when the rocket, when at the base Cd, is
         // found to be at or below the target apogee using the ballistic model.
@@ -119,7 +128,7 @@ void airbrakes_state::execute()
         // Enforce closed state when we are not in active flight
         servo.set_target_degrees(0);
     } else if (current_state == state::ACTIVE_FLIGHT) {
-        real target_cd = cd_controller_solve(0.95f * baro_velocity + 0.05f * velocity.z, baro_altitude - reference_altitude, TARGET_ALTITUDE);
+        real target_cd = cd_controller_solve(fused_velocity, baro_altitude - reference_altitude, TARGET_ALTITUDE);
         real flap_deflection = get_flap_deflection(target_cd);
         flap_target_degrees = flap_deflection;
         float motor_degrees = 8280.0f * M_1_PI * std::asinf(flap_deflection / 45.0f);
@@ -170,6 +179,7 @@ void airbrakes_state::step()
 
     baro_velocity = (baro_altitude - last_baro_altitude) / delta_time;
     last_baro_altitude = baro_altitude;
+    fused_velocity = 0.95f * baro_velocity + 0.05f * velocity.z;
 
     if (current_state == state::IDLE_FLIGHT || 
             current_state == state::ACTIVE_FLIGHT) {
@@ -244,7 +254,7 @@ void airbrakes_state::log()
 
     packet.acc_velocity_mps = velocity.z;
     packet.baro_velocity_mps = baro_velocity;
-    packet.fused_velocity_mps = velocity.z * 0.05f + baro_velocity * 0.95f;
+    packet.fused_velocity_mps = fused_velocity;
 
     packet.pressure_pascals = pressure;
     packet.temperature_c = temperature;

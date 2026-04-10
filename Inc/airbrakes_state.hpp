@@ -91,7 +91,7 @@ struct airbrakes_state {
      * Calculates the next state in the finite state machine based on the rocket
      * state. If we aren't going to transition this step, returns nullopt.
      */
-    std::optional<state> next() const;
+    std::optional<state> next();
 
     /** get some base values */
     void init();
@@ -143,6 +143,8 @@ struct airbrakes_state {
     real baro_velocity;
     real target_altitude = 1646.0f;
     real flap_target_degrees;
+    real fused_velocity;
+    real state_time = 0;
 
     vec3 velocity;
     vec3 acceleration;
