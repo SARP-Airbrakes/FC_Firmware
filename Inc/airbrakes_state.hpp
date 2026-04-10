@@ -53,8 +53,18 @@ struct airbrakes_state {
         float accel_y_mps2; /* imu accel in y (board-relative) */
         float accel_z_mps2; /* imu accel in z (board-relative) */
 
+        float ang_vel_x_ds;
+        float ang_vel_y_ds;
+        float ang_vel_z_ds;
+
         float acc_altitude_m; /* altitude found by integrating accel */
         float baro_altitude_m; /* altitude found with pressure */
+        float reference_altitude_m;
+        float agl_altitude_m;
+
+        float acc_velocity_mps;
+        float baro_velocity_mps;
+        float fused_velocity_mps;
 
         float pressure_pascals; /* pressure */
         float temperature_c; /* temperature */
@@ -136,6 +146,7 @@ struct airbrakes_state {
 
     vec3 velocity;
     vec3 acceleration;
+    vec3 angular_velocity;
     vec3 filtered_acceleration;
     vec3 last_acceleration;
 };

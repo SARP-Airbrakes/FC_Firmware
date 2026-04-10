@@ -145,12 +145,15 @@ void airbrakes_state::execute()
 
 void airbrakes_state::step()
 {
-    
     // Copy states and grab measurements from drivers.
     {
         auto imu_state = imu.copy_state();
         auto baro_state = baro.copy_state();
         baro_altitude = baro_state.altitude_meters;
+        angular_velocity = imu_state.angular_velocity_ds;
+        if (reference_altitude == 0) {
+            reference_altitude = baro_altitude;
+        }
         pressure = baro_state.pressure_pascals;
         temperature = baro_state.temperature_celsius;
 
@@ -230,8 +233,18 @@ void airbrakes_state::log()
     packet.accel_y_mps2 = acceleration.y;
     packet.accel_z_mps2 = acceleration.z;
 
+    packet.ang_vel_x_ds = angular_velocity.x;
+    packet.ang_vel_y_ds = angular_velocity.y;
+    packet.ang_vel_z_ds = angular_velocity.z;
+
     packet.acc_altitude_m = acc_altitude;
     packet.baro_altitude_m = baro_altitude;
+    packet.reference_altitude_m = reference_altitude;
+    packet.agl_altitude_m = baro_altitude - reference_altitude;
+
+    packet.acc_velocity_mps = velocity.z;
+    packet.baro_velocity_mps = baro_velocity;
+    packet.fused_velocity_mps = velocity.z * 0.05f + baro_velocity * 0.95f;
 
     packet.pressure_pascals = pressure;
     packet.temperature_c = temperature;

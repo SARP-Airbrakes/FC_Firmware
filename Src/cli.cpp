@@ -37,21 +37,29 @@ static constexpr sdk::cli::command cli_commands[] = {
     {
         "dump",
         [](sdk::cli &c, int, char *[]) {
-            c.println("packet_id,time_s,accel_x_mps2,accel_y_mps2,accel_z_mps2,acc_altitude_m,baro_altitude_m,pressure_pascals,temperature_c,gps_altitude_m,current_state,motor_target_degrees,motor_actual_degrees,motor_commanded_power,flap_target_degrees,fix_status");
+            c.println("packet_id,time_s,accel_x_mps2,accel_y_mps2,accel_z_mps2,ang_vel_x_ds,ang_vel_y_ds,ang_vel_z_ds,acc_altitude_m,baro_altitude_m,reference_altitude_m,agl_altitude_m,acc_velocity_mps,baro_velocity_mps,fused_velocity_mps,pressure_pascals,temperature_c,gps_altitude_m,current_state,motor_target_degrees,motor_actual_degrees,motor_commanded_power,flap_target_degrees,fix_status");
             int i = 0;
             for (;;) {
                 airbrakes_state::flight_packet packet = state_handle->read_packet(i++);
                 if (packet.packet_id != i - 1)
                     break;
                 printf(
-                    "%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f,%.2f,%d\r\n",
+                    "%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f,%.2f,%d\r\n",
                     packet.packet_id,
                     packet.time_s,
                     packet.accel_x_mps2,
                     packet.accel_y_mps2,
                     packet.accel_z_mps2,
+                    packet.ang_vel_x_ds,
+                    packet.ang_vel_y_ds,
+                    packet.ang_vel_z_ds,
                     packet.acc_altitude_m,
                     packet.baro_altitude_m,
+                    packet.reference_altitude_m,
+                    packet.agl_altitude_m,
+                    packet.acc_velocity_mps,
+                    packet.baro_velocity_mps,
+                    packet.fused_velocity_mps,
                     packet.pressure_pascals,
                     packet.temperature_c,
                     packet.gps_altitude_m,
