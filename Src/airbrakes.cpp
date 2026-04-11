@@ -31,13 +31,13 @@ void airbrakes_initialize()
 
     sdk::pwm in1(&htim2, sdk::pwm::tim_channel::CHANNEL_1);
     sdk::pwm in2(&htim2, sdk::pwm::tim_channel::CHANNEL_2);
-    sdk::drv8701 drv(1.0e-1, std::move(in1), std::move(in2));
+    sdk::drv8701 drv(8.0e-2, std::move(in1), std::move(in2));
 
     sdk::unique_pin encoder1(ENCODER1_GPIO_Port, ENCODER1_Pin);
     sdk::unique_pin encoder2(ENCODER2_GPIO_Port, ENCODER2_Pin);
     sdk::quad_encoder encoder(3200, std::move(encoder1), std::move(encoder2));
 
-    sdk::motor_controller ctrl(1.8e-2f, 1.2e-1f, 5.0e-4f, std::move(drv),
+    sdk::motor_controller ctrl(1.8e-2f, 1.2e-3f, 5.0e-4f, std::move(drv),
             std::move(encoder));
 
     static airbrakes_state state(std::move(imu), std::move(baro),
@@ -57,6 +57,7 @@ void airbrakes_start(void)
         sdk::bmi088::acc_odr::ODR_100HZ
     );
     state_handle->imu.start();
+    osDelay(50); /* required by datasheet */
 
     state_handle->baro.set_config(2);
     state_handle->baro.set_odr(sdk::bmp390::odr::ODR_100);
@@ -66,6 +67,8 @@ void airbrakes_start(void)
     );
     state_handle->baro.set_power(true, true, sdk::bmp390::pwr_mode::PWR_NORMAL);
     state_handle->baro.read_calibration_data();
+
+    state_handle->init();
 }
 
 void airbrakes_motor_update(float time)

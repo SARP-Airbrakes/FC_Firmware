@@ -31,9 +31,9 @@ struct airbrakes_state {
     static constexpr real TIME_THRESHOLD = 60.0f;
 
     // Frequency in which flight data is logged in idle modes, in Hz
-    static constexpr real IDLE_LOGGING_FREQ = 1.0f;
+    static constexpr real IDLE_LOGGING_FREQ = 2.0f;
     // Frequency in which flight data is logged in active mode, in Hz
-    static constexpr real ACTIVE_LOGGING_FREQ = 10.0f;
+    static constexpr real ACTIVE_LOGGING_FREQ = 20.0f;
     
     /** 
      * States of a finite state machine representing the Airbrakes actuation
@@ -145,6 +145,7 @@ struct airbrakes_state {
     real flap_target_degrees;
     real fused_velocity;
     real state_time = 0;
+    real last_vtime = 0;
 
     vec3 velocity;
     vec3 acceleration;

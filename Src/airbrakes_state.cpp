@@ -83,6 +83,9 @@ void airbrakes_state::switch_state(state new_state)
     HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(LED_B_GPIO_Port, LED_B_Pin, GPIO_PIN_SET);
+
+    last_log = 0.0f; // log as soon as we switch states
+
     switch (new_state) {
     default:
         break;
@@ -140,7 +143,8 @@ void airbrakes_state::execute()
         return;
 
     // Flight logging logic.
-    real frequency = (current_state == state::ACTIVE_FLIGHT || current_state == state::IDLE_FLIGHT) ? 
+    real frequency = (current_state == state::ACTIVE_FLIGHT || 
+            current_state == state::IDLE_FLIGHT) ? 
         ACTIVE_LOGGING_FREQ : 
         IDLE_LOGGING_FREQ;
     if (current_state == state::IDLE_RECOVERY) {
@@ -177,8 +181,13 @@ void airbrakes_state::step()
     time = get_tick_seconds();
     delta_time = time - last_time;
 
-    baro_velocity = (baro_altitude - last_baro_altitude) / delta_time;
-    last_baro_altitude = baro_altitude;
+    float dvtime = time - last_vtime;
+    if (dvtime >= 0.25f) {
+        baro_velocity = (baro_altitude - last_baro_altitude) / delta_time;
+        last_vtime = time;
+        last_baro_altitude = baro_altitude;
+    }
+
     fused_velocity = 0.95f * baro_velocity + 0.05f * velocity.z;
 
     if (current_state == state::IDLE_FLIGHT || 
