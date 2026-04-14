@@ -57,10 +57,9 @@ void airbrakes_start(void)
         sdk::bmi088::acc_odr::ODR_100HZ
     );
     state_handle->imu.start();
-    osDelay(50); /* required by datasheet */
 
     state_handle->baro.set_config(2);
-    state_handle->baro.set_odr(sdk::bmp390::odr::ODR_100);
+    state_handle->baro.set_odr(sdk::bmp390::odr::ODR_25);
     state_handle->baro.set_osr(
         sdk::bmp390::osr::OSR_4,
         sdk::bmp390::osr::OSR_4
@@ -68,6 +67,7 @@ void airbrakes_start(void)
     state_handle->baro.set_power(true, true, sdk::bmp390::pwr_mode::PWR_NORMAL);
     state_handle->baro.read_calibration_data();
 
+    osDelay(500);
     state_handle->init();
 }
 

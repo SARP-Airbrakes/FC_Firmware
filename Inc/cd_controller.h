@@ -18,7 +18,7 @@ typedef double real_T;
 
 // Physical Constants
 #define CD_CONTROLLER_AREA r(0.01824146924750467)
-#define CD_CONTROLLER_MASS r(37.651)
+#define CD_CONTROLLER_MASS r(29.756)
 #define CD_CONTROLLER_GRAVITY r(9.81)
 
 // Cd Limits

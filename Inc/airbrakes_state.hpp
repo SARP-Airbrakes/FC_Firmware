@@ -27,7 +27,7 @@ struct airbrakes_state {
         ACTIVE_FLIGHT_MAX_VELOCITY * ACTIVE_FLIGHT_MAX_VELOCITY;
     static constexpr real IDLE_RECOVERY_MAX_ALTITUDE = 1000.0f;
  
-    static constexpr real TARGET_ALTITUDE = 1646.0f;
+    static constexpr real TARGET_ALTITUDE = 1738.0f;
     static constexpr real TIME_THRESHOLD = 60.0f;
 
     // Frequency in which flight data is logged in idle modes, in Hz
@@ -141,7 +141,7 @@ struct airbrakes_state {
     real temperature;
     real last_baro_altitude = NAN;
     real baro_velocity;
-    real target_altitude = 1646.0f;
+    real target_altitude = 1738.0f;
     real flap_target_degrees;
     real fused_velocity;
     real state_time = 0;

@@ -139,7 +139,7 @@ void airbrakes_state::execute()
     }
 
     // THIS SHOULD ALSO CHECK FOR TIME ON THE PAD
-    if (current_state == state::IDLE_PAD && time <= TIME_THRESHOLD)
+    if (current_state == state::IDLE_PAD /* && time <= TIME_THRESHOLD */)
         return;
 
     // Flight logging logic.
@@ -182,8 +182,8 @@ void airbrakes_state::step()
     delta_time = time - last_time;
 
     float dvtime = time - last_vtime;
-    if (dvtime >= 0.25f) {
-        baro_velocity = (baro_altitude - last_baro_altitude) / delta_time;
+    if (dvtime >= 0.50f) {
+        baro_velocity = (baro_altitude - last_baro_altitude) / dvtime;
         last_vtime = time;
         last_baro_altitude = baro_altitude;
     }
