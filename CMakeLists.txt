@@ -38,8 +38,11 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
-# Add air-brakes sdk
+# Add airbrakes sdk
 add_subdirectory(sdk)
+
+# Add eigen
+add_subdirectory(eigen)
 
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -u _printf_float")
 
@@ -75,6 +78,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
     airbrakes_sdk
+    Eigen3::Eigen
 )
 
 # patch(rwilliaise): makes clangd look in the correct spots for system headers

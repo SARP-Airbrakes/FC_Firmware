@@ -8,10 +8,9 @@
 #include <array>
 #include <cmath>
 
-airbrakes_state::airbrakes_state(bmi088 &&imu, bmp390 &&baro, cdpa1616d &&gps,
-        w25q128jv &&flash, motor_controller &&servo) :
-    imu(std::forward<bmi088>(imu)), baro(std::forward<bmp390>(baro)),
-    gps(std::forward<cdpa1616d>(gps)), flash(std::forward<w25q128jv>(flash)),
+airbrakes_state::airbrakes_state(bmi088 &&imu, bmp390 &&baro, w25q128jv &&flash,
+        motor_controller &&servo) : imu(std::forward<bmi088>(imu)),
+    baro(std::forward<bmp390>(baro)), flash(std::forward<w25q128jv>(flash)),
     servo(std::forward<motor_controller>(servo)), flight_packet_queue(8)
 {
 }

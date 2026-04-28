@@ -7,7 +7,6 @@
 #include <sdk/drivers/motor_controller.h>
 #include <sdk/drivers/bmi088.h>
 #include <sdk/drivers/bmp390.h>
-#include <sdk/drivers/cdpa1616d.h>
 #include <sdk/drivers/w25q128jv.h>
 
 #include <cmath>
@@ -84,8 +83,8 @@ struct airbrakes_state {
      * Initializes the airbrakes controller state. Assumes that the drivers are
      * already properly initialized when moved.
      */
-    airbrakes_state(bmi088 &&imu, bmp390 &&baro, cdpa1616d &&gps, w25q128jv
-            &&flash, motor_controller &&servo);
+    airbrakes_state(bmi088 &&imu, bmp390 &&baro, w25q128jv &&flash,
+            motor_controller &&servo);
 
     /**
      * Calculates the next state in the finite state machine based on the rocket
@@ -122,7 +121,6 @@ struct airbrakes_state {
 
     bmi088 imu;
     bmp390 baro;
-    cdpa1616d gps;
     w25q128jv flash;
     motor_controller servo;
 

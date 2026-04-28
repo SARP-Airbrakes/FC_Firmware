@@ -5,6 +5,8 @@
 #include <sdk/spi.h>
 #include <sdk/unique_pin.h>
 
+#include <Eigen/Eigen>
+
 #include <cmsis_os.h>
 
 #include <usbd_cdc_if.h>
@@ -22,8 +24,6 @@ void airbrakes_initialize()
     sdk::bmi088 imu(i2c1);
     sdk::bmp390 baro(i2c1);
 
-    sdk::uart_buffered uart1(&huart1);
-    sdk::cdpa1616d gps(std::move(uart1));
 
     sdk::unique_pin cs_flash(CS_FLASH_GPIO_Port, CS_FLASH_Pin);
     static sdk::spi spi1(&hspi1);
@@ -41,7 +41,7 @@ void airbrakes_initialize()
             std::move(encoder));
 
     static airbrakes_state state(std::move(imu), std::move(baro),
-            std::move(gps), std::move(flash), std::move(ctrl));
+            std::move(flash), std::move(ctrl));
 
     state_handle = &state;
 
@@ -123,8 +123,6 @@ void airbrakes_blink_leds(void)
 
 void airbrakes_gps_update(void)
 {
-    if (state_handle != nullptr)
-        state_handle->gps.update();
 }
 
 void airbrakes_imu_update(void)
@@ -228,7 +226,6 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
             __HAL_UART_CLEAR_FLAG(huart, UART_FLAG_FE);
 
             // uh oh
-            state_handle->gps.uart.error_from_isr();
         }
 
         // uart buf full, ignore and keep going
