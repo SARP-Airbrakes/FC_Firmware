@@ -5,7 +5,7 @@
 real_T cd_controller_solve(real_T vel_mps, real_T alt_m, real_T target_m)
 {
     // ------------------ Gate Solver (match MATLAB) ------------------
-    if (!(vel_mps < r(210.0) && vel_mps > r(0.0))) {
+    if (vel_mps > r(210.0) || vel_mps < r(0.0)) {
         return CD_CONTROLLER_MIN_CD;
     }
 

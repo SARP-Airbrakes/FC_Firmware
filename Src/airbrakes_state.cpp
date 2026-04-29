@@ -125,12 +125,18 @@ real get_flap_deflection(real target_cd) {
 
 void airbrakes_state::execute()
 {
-    // Actual air-brakes control logic.
+    // Actual airbrakes control logic.
     if (current_state != state::ACTIVE_FLIGHT) {
         // Enforce closed state when we are not in active flight
         servo.set_target_degrees(0);
     } else if (current_state == state::ACTIVE_FLIGHT) {
-        real target_cd = cd_controller_solve(fused_velocity, baro_altitude - reference_altitude, TARGET_ALTITUDE);
+        real target_cd = cd_controller_solve(
+            fused_velocity,
+            baro_altitude - reference_altitude,
+            TARGET_ALTITUDE
+        );
+        // ... (actuate the flaps)
+
         real flap_deflection = get_flap_deflection(target_cd);
         flap_target_degrees = flap_deflection;
         float motor_degrees = 8280.0f * M_1_PI * std::asinf(flap_deflection / 45.0f);

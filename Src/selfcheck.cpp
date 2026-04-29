@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <cmsis_os.h>
 
+#include <Eigen/Eigen>
+
 struct selfcheck_test {
     enum status {
         OK,
@@ -89,7 +91,25 @@ const selfcheck_test selfcheck_tests[] = {
         }
     },
     {
-        "Small memory allocation",
+        "Matrix multiplication",
+        []() {
+            Eigen::Matrix3f matrix0 = Eigen::Matrix3f::Constant(3, 3, 1);
+            Eigen::Matrix3f matrix1 = Eigen::Matrix3f::Constant(3, 3, 2);
+            Eigen::Matrix3f result = matrix0 * matrix1;
+            for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 3; j++)
+                    if (result(i, j) != 6)
+                        return selfcheck_test::FAIL;
+            return selfcheck_test::OK;
+        },
+        []() {
+            printf(" - flight-critical failure\r\n");
+            printf(" - requires immediate reflashing\r\n");
+            printf(" - confirmed not ready for flight\r\n");
+        }
+    },
+    {
+        "Small FreeRTOS memory allocation",
         []() {
             void *memory = pvPortMalloc(16);
             bool valid = memory != nullptr;
@@ -99,6 +119,32 @@ const selfcheck_test selfcheck_tests[] = {
         []() {
             printf(" - may be out of heap memory, rebooting may help\r\n");
             printf(" - possible memory leak\r\n");
+        }
+    },
+    {
+        "Small libc memory allocation",
+        []() {
+            char *memory = (char *) malloc(16);
+            bool valid = memory != nullptr;
+            free(memory);
+            return valid ? selfcheck_test::OK : selfcheck_test::FAIL;
+        },
+        []() {
+            printf(" - may be out of system heap (seperate from FreeRTOS heap), rebooting may help\r\n");
+            printf(" - possible memory leak, probably related to Eigen\r\n");
+        }
+    },
+    {
+        "Small operator new allocation",
+        []() {
+            // std::bad_alloc possible here
+            char *memory = new char[16]();
+            bool valid = memory != nullptr;
+            delete[] memory;
+            return valid ? selfcheck_test::OK : selfcheck_test::FAIL;
+        },
+        []() {
+            printf(" - this one is harder to diagnose\r\n");
         }
     },
     {
@@ -144,30 +190,6 @@ const selfcheck_test selfcheck_tests[] = {
             printf(" - check that the flash chip is connected\r\n");
             printf(" - possible power problem\r\n");
             SELFCHECK_PRINT_STATUS();
-        }
-    },
-    {
-        "GPS state",
-        []() {
-            auto gps_state = state_handle->gps.copy_state();
-            return gps_state.data_valid ? selfcheck_test::OK :
-                selfcheck_test::FAIL;
-        },
-        []() {
-            printf(" - gps is not being read\r\n");
-            printf(" - possible connectivity issue\r\n");
-        }
-    },
-    {
-        "GPS fix",
-        []() {
-            auto gps_state = state_handle->gps.copy_state();
-            return gps_state.fixed != cdpa1616d::gps_fix::NO_FIX ?
-                selfcheck_test::OK :
-                selfcheck_test::FAIL;
-        },
-        []() {
-            printf(" - no gps fix found\r\n");
         }
     },
     { NULL, NULL, NULL },

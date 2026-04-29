@@ -70,6 +70,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
     CD_CONTROLLER_FLOAT
+    EIGEN_NO_MALLOC
 )
 
 # Add linked libraries

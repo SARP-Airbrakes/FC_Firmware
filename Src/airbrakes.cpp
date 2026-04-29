@@ -12,6 +12,8 @@
 #include <usbd_cdc_if.h>
 #include <main.h>
 
+#include <iostream>
+
 #include <cstdarg>
 
 extern "C" {
@@ -23,7 +25,6 @@ void airbrakes_initialize()
     static sdk::i2c_master i2c1(&hi2c1);
     sdk::bmi088 imu(i2c1);
     sdk::bmp390 baro(i2c1);
-
 
     sdk::unique_pin cs_flash(CS_FLASH_GPIO_Port, CS_FLASH_Pin);
     static sdk::spi spi1(&hspi1);
@@ -54,7 +55,7 @@ void airbrakes_start(void)
     state_handle->imu.set_acc_config(
         sdk::bmi088::acc_range::RANGE_6G,
         sdk::bmi088::acc_bwp::OSR4,
-        sdk::bmi088::acc_odr::ODR_100HZ
+        sdk::bmi088::acc_odr::ODR_25HZ
     );
     state_handle->imu.start();
 
