@@ -8,6 +8,8 @@
 pkgs.mkShell {
   packages = with pkgs; [
     cmake
+    meson # for tools
+    ninja
 
     # Device-side
     openocd

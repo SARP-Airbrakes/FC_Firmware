@@ -58,6 +58,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Src/airbrakes_state.cpp
     Src/cd_controller.c
     Src/cli.cpp
+    Src/filter.cpp
     Src/selfcheck.cpp
 )
 
