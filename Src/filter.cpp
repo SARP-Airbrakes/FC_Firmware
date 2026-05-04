@@ -4,7 +4,7 @@
 static const filter::vec3 ACCELEROMETER_VARIANCE = filter::vec3(1.5696e-3f, 1.5696e-3f, 1.8639e-3f);
 static const filter::vec3 ACCELEROMETER_BIAS_VARIANCE = filter::vec3(1.962e-3f, 1.962e-3f, 1.962e-3f);
 static const float BARO_VARIANCE = 0.09f;
-static const float BARO_BIAS_VARIANCE = 8.0e-2f;
+static const float BARO_BIAS_VARIANCE = 8e-2f;
 static const filter::vec3 GRAVITY = filter::vec3(0, 0, -9.81f);
 
 filter::filter()
