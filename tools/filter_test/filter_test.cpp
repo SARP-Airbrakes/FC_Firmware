@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
         return 2;
     }
 
-    outs << "packet_id,time_s,altitude_m,vertical_velocity_mps,accelerometer_bias_mps2,baro_bias_m,altitude_stddev,vertical_velocity_stddev,accelerometer_bias_stddev,baro_bias_stddev\n";
+    outs << "packet_id,time_s,altitude_m,vertical_velocity_mps,accelerometer_bias_mps2,baro_bias_m,baro_moving_bias_s,altitude_stddev,vertical_velocity_stddev,accelerometer_bias_stddev,baro_bias_stddev,baro_moving_bias_stddev\n";
 
     while (std::getline(stream, buf)) {
         std::istringstream line_stream(buf);
@@ -81,10 +81,12 @@ int main(int argc, char *argv[]) {
                 outs << test_filter.get_velocity()(2) << ",";
                 outs << test_filter.get_estimated_state()(8) << ",";
                 outs << test_filter.get_estimated_state()(9) << ",";
+                outs << test_filter.get_estimated_state()(10) << ",";
                 outs << std::sqrtf(test_filter.get_estimated_state_covariance()(2, 2)) << ",";
                 outs << std::sqrtf(test_filter.get_estimated_state_covariance()(5, 5)) << ",";
                 outs << std::sqrtf(test_filter.get_estimated_state_covariance()(8, 8)) << ",";
-                outs << std::sqrtf(test_filter.get_estimated_state_covariance()(9, 9)) << "\n";
+                outs << std::sqrtf(test_filter.get_estimated_state_covariance()(9, 9)) << ",";
+                outs << std::sqrtf(test_filter.get_estimated_state_covariance()(10, 10)) << "\n";
             }
         } catch (std::invalid_argument const& ex) {
             std::cerr << "std::invalid_argument::what(): " << ex.what() << "\n";
