@@ -18,24 +18,87 @@ airbrakes_state::airbrakes_state(bmi088 &&imu, bmp390 &&baro, w25q128jv &&flash,
 void airbrakes_state::init()
 {
     auto baro_state = baro.copy_state();
-    auto imu_state = imu.copy_state();
-    reference_altitude = baro_state.altitude_meters;
-    baro_altitude = baro_state.altitude_meters;
-    last_baro_altitude = baro_state.altitude_meters;
-    acceleration = imu_state.acceleration_ms2;
-    last_acceleration = imu_state.acceleration_ms2;
+    reference_altitude_m = baro_state.altitude_meters;
+    state_estimate.reinitialize(baro_state.altitude_meters);
 }
 
-std::optional<airbrakes_state::state> airbrakes_state::next()
+void airbrakes_state::flight_packet::print_packet_header()
 {
+    printf("packet_id,"
+           "time_s,"
+           "accel_x_mps2,accel_y_mps2,accel_z_mps2,"
+           "ang_vel_x_ds,ang_vel_y_ds,ang_vel_z_ds,"
+           "baro_altitude_m,"
+           "reference_altitude_m,"
+           "agl_altitude_m,"
+           "estimated_accel_x_mps2,estimated_accel_y_mps2,estimated_accel_z_mps2,"
+           "estimated_altitude_m,"
+           "estimated_upward_velocity_mps,"
+           "pressure_pascals,"
+           "temperature_c,"
+           "current_state,"
+           "motor_target_degrees,"
+           "motor_actual_degrees,"
+           "motor_commanded_power,"
+           "flap_target_degrees\r\n");
+}
+
+void airbrakes_state::flight_packet::print_packet() const
+{
+    printf(
+        "%d," /* packet id */
+        "%.2f," /* time */
+        "%.2f,%.2f,%.2f," /* acceleration */
+        "%.2f,%.2f,%.2f," /* angular velocity */
+        "%.2f," /* baro altitude */
+        "%.2f," /* reference altitude */
+        "%.2f," /* agl altitude */
+        "%.2f,%.2f,%.2f," /* estimated acceleration */
+        "%.2f," /* estimated altitude */
+        "%.2f," /* estimated upward velocity */
+        "%.2f," /* pressure */
+        "%.2f," /* temperature */
+        "%d," /* current state */
+        "%.2f," /* motor target degrees */
+        "%.2f," /* motor actual degrees */
+        "%.2f," /* motor commanded power */
+        "%.2f\r\n", /* flap target degrees */
+        packet_id,
+        time_s,
+        accel_x_mps2,
+        accel_y_mps2,
+        accel_z_mps2,
+        ang_vel_x_ds,
+        ang_vel_y_ds,
+        ang_vel_z_ds,
+        baro_altitude_m,
+        reference_altitude_m,
+        agl_altitude_m,
+        estimated_accel_x_mps2,
+        estimated_accel_y_mps2,
+        estimated_accel_z_mps2,
+        estimated_altitude_m,
+        estimated_upward_velocity_mps,
+        pressure_pascals,
+        temperature_c,
+        (int) current_state,
+        motor_target_degrees,
+        motor_actual_degrees,
+        motor_commanded_power,
+        flap_target_degrees
+    );
+}
+
+std::optional<airbrakes_state::state> airbrakes_state::next(const vec3 &filtered_acceleration_mps2)
+{
+    real vertical_velocity_mps = state_estimate.get_velocity()(2);
     switch (current_state) {
     case state::IDLE_PAD:
         /* 
          * This transition should occur on launch.
          */
-        if (acceleration.magnitude_sqr() != 0 &&
-                filtered_acceleration.magnitude_sqr() > IDLE_FLIGHT_MIN_ACCEL * IDLE_FLIGHT_MIN_ACCEL && 
-                fused_velocity > 15.0f)
+        if (filtered_acceleration_mps2.z > IDLE_FLIGHT_MIN_ACCEL && 
+                vertical_velocity_mps > 15.0f)
             return state::IDLE_FLIGHT;
         return std::nullopt;
     case state::IDLE_FLIGHT:
@@ -47,7 +110,7 @@ std::optional<airbrakes_state::state> airbrakes_state::next()
         if (velocity.magnitude_sqr() < ACTIVE_FLIGHT_MAX_VELOCITY_SQR)
             return state::ACTIVE_FLIGHT;
         */
-        if (filtered_acceleration.z < -10.0f)
+        if (filtered_acceleration_mps2.z < -10.0f)
             return state::ACTIVE_FLIGHT;
         return std::nullopt;
     case state::ACTIVE_FLIGHT:
@@ -56,14 +119,8 @@ std::optional<airbrakes_state::state> airbrakes_state::next()
          * altitude, incorrect orientation, etc or there was some unknown
          * regulatory failure that requires immediate de-actuation.
          */
-        if (fused_velocity < -1.0f) {
-            if (state_time != 0 && time - state_time >= 0.5f) {
-                return state::IDLE_RECOVERY;
-            } else if (state_time == 0) {
-                state_time = time;
-            }
-        } else {
-            state_time = 0;
+        if (vertical_velocity_mps < -1.0f) {
+            return state::IDLE_RECOVERY;
         }
 
         // TODO: Also should transition when the rocket, when at the base Cd, is
@@ -130,17 +187,24 @@ void airbrakes_state::execute()
         // Enforce closed state when we are not in active flight
         servo.set_target_degrees(0);
     } else if (current_state == state::ACTIVE_FLIGHT) {
+        float upward_velocity_mps = state_estimate.get_velocity()(2);
+        float altitude_m = state_estimate.get_position()(2);
+        
         real target_cd = cd_controller_solve(
-            fused_velocity,
-            baro_altitude - reference_altitude,
+            upward_velocity_mps,
+            altitude_m - reference_altitude_m,
             TARGET_ALTITUDE
         );
-        // ... (actuate the flaps)
 
         real flap_deflection = get_flap_deflection(target_cd);
-        flap_target_degrees = flap_deflection;
-        float motor_degrees = 8280.0f * M_1_PI * std::asinf(flap_deflection / 45.0f);
+        real motor_degrees = 4361.0f - 652.0f * sqrtf(45.0f - flap_deflection);
+
         servo.set_target_degrees(-motor_degrees);
+
+        packet.motor_actual_degrees = servo.encoder.get_degrees();
+        packet.motor_target_degrees = motor_degrees;
+        packet.motor_commanded_power = servo.commanded_power;
+        packet.flap_target_degrees = flap_deflection;
     }
 
     // THIS SHOULD ALSO CHECK FOR TIME ON THE PAD
@@ -156,6 +220,9 @@ void airbrakes_state::execute()
         frequency = 0.25f;
     }
     if (time - last_log > 1.0f / frequency) {
+        if (force_log) {
+            packet.print_packet();
+        }
         log();
         last_log = time;
     }
@@ -163,53 +230,67 @@ void airbrakes_state::execute()
 
 void airbrakes_state::step()
 {
-    // Copy states and grab measurements from drivers.
-    {
-        auto imu_state = imu.copy_state();
-        auto baro_state = baro.copy_state();
-        baro_altitude = baro_state.altitude_meters;
-        angular_velocity = imu_state.angular_velocity_ds;
-        if (reference_altitude == 0) {
-            reference_altitude = baro_altitude;
-        }
-        pressure = baro_state.pressure_pascals;
-        temperature = baro_state.temperature_celsius;
-
-        if (isnanf(last_baro_altitude))
-            last_baro_altitude = baro_altitude;
-
-        acceleration = imu_state.acceleration_ms2;
-        filtered_acceleration = acceleration;
-        filtered_acceleration.z -= 9.81;
-    }
-
     time = get_tick_seconds();
-    delta_time = time - last_time;
-
-    float dvtime = time - last_vtime;
-    if (dvtime >= 0.50f) {
-        baro_velocity = (baro_altitude - last_baro_altitude) / dvtime;
-        last_vtime = time;
-        last_baro_altitude = baro_altitude;
-    }
-
-    fused_velocity = 0.95f * baro_velocity + 0.05f * velocity.z;
-
-    if (current_state == state::IDLE_FLIGHT || 
-            current_state == state::ACTIVE_FLIGHT) {
-        velocity += delta_time * filtered_acceleration;
-
-        // really dumb integration tech for getting altitude
-        acc_altitude += velocity.z * delta_time + 0.5f * delta_time * delta_time * filtered_acceleration.z;
-    }
+    real delta_time = time - last_time;
     last_time = time;
 
+    packet.time_s = time;
+
+    // Copy states and grab measurements from drivers.
+    auto imu_state = imu.copy_state();
+    auto baro_state = baro.copy_state();
+
+    packet.pressure_pascals = baro_state.pressure_pascals;
+    packet.temperature_c = baro_state.temperature_celsius;
+
+    packet.accel_x_mps2 = imu_state.acceleration_ms2.x;
+    packet.accel_y_mps2 = imu_state.acceleration_ms2.y;
+    packet.accel_z_mps2 = imu_state.acceleration_ms2.z;
+
+    packet.ang_vel_x_ds = imu_state.angular_velocity_ds.x;
+    packet.ang_vel_y_ds = imu_state.angular_velocity_ds.y;
+    packet.ang_vel_z_ds = imu_state.angular_velocity_ds.z;
+
+    packet.baro_altitude_m = baro_state.altitude_meters;
+    packet.reference_altitude_m = reference_altitude_m;
+    packet.agl_altitude_m = baro_state.altitude_meters - reference_altitude_m;
+
+    auto raw_acceleration = filter::vec3(
+        imu_state.acceleration_ms2.x,
+        imu_state.acceleration_ms2.y,
+        imu_state.acceleration_ms2.z
+    );
+    state_estimate.predict(delta_time, raw_acceleration);
+
+    /*
+    if (current_state == state::IDLE_PAD)
+        state_estimate.correct_accelerometer(raw_acceleration);
+    */
+    state_estimate.correct_barometer(baro_state.altitude_meters);
+
+    auto eigen_filtered_acceleration_mps2 =
+        state_estimate.get_filtered_acceleration(raw_acceleration);
+    vec3 filtered_acceleration_mps2 = vec3 {
+        eigen_filtered_acceleration_mps2(0),
+        eigen_filtered_acceleration_mps2(1),
+        eigen_filtered_acceleration_mps2(2)
+    };
+
+    packet.estimated_accel_x_mps2 = filtered_acceleration_mps2.x;
+    packet.estimated_accel_y_mps2 = filtered_acceleration_mps2.y;
+    packet.estimated_accel_z_mps2 = filtered_acceleration_mps2.z;
+
+    packet.estimated_altitude_m = state_estimate.get_position()(2);
+    packet.estimated_upward_velocity_mps = state_estimate.get_velocity()(2);
+
     // Switch the state if state transition is found.
-    auto next_step = next();
+    auto next_step = next(filtered_acceleration_mps2);
     if (next_step.has_value()) { 
         switch_state(*next_step);
         current_state = *next_step;
     }
+
+    packet.current_state = current_state;
 
     // Execute the new state.
     execute();
@@ -250,35 +331,6 @@ void airbrakes_state::update_flash()
 
 void airbrakes_state::log()
 {
-    flight_packet packet;
-    packet.packet_id = 0;
-    packet.time_s = get_tick_seconds();
-    packet.accel_x_mps2 = acceleration.x;
-    packet.accel_y_mps2 = acceleration.y;
-    packet.accel_z_mps2 = acceleration.z;
-
-    packet.ang_vel_x_ds = angular_velocity.x;
-    packet.ang_vel_y_ds = angular_velocity.y;
-    packet.ang_vel_z_ds = angular_velocity.z;
-
-    packet.acc_altitude_m = acc_altitude;
-    packet.baro_altitude_m = baro_altitude;
-    packet.reference_altitude_m = reference_altitude;
-    packet.agl_altitude_m = baro_altitude - reference_altitude;
-
-    packet.acc_velocity_mps = velocity.z;
-    packet.baro_velocity_mps = baro_velocity;
-    packet.fused_velocity_mps = fused_velocity;
-
-    packet.pressure_pascals = pressure;
-    packet.temperature_c = temperature;
-    packet.gps_altitude_m = 0;
-    packet.current_state = current_state;
-    packet.motor_target_degrees = servo.target_degrees;
-    packet.motor_actual_degrees = servo.encoder.get_degrees();
-    packet.motor_commanded_power = servo.commanded_power;
-    packet.flap_target_degrees = flap_target_degrees;
-    packet.fix_status = 0;
-
     flight_packet_queue.push_back(packet);
+    packet = flight_packet();
 }

@@ -9,6 +9,8 @@
 #include <sdk/drivers/bmp390.h>
 #include <sdk/drivers/w25q128jv.h>
 
+#include <filter.hpp>
+
 #include <cmath>
 
 using namespace sdk;
@@ -47,36 +49,38 @@ struct airbrakes_state {
 
     struct flight_packet {
         int packet_id; /* packet number */
-        float time_s; /* time since flight computer boot */
-        float accel_x_mps2; /* imu accel in x (board-relative) */
-        float accel_y_mps2; /* imu accel in y (board-relative) */
-        float accel_z_mps2; /* imu accel in z (board-relative) */
+        real time_s; /* time since flight computer boot */
 
-        float ang_vel_x_ds;
-        float ang_vel_y_ds;
-        float ang_vel_z_ds;
+        real accel_x_mps2; /* imu accel in x (board-relative) */
+        real accel_y_mps2; /* imu accel in y (board-relative) */
+        real accel_z_mps2; /* imu accel in z (board-relative) */
 
-        float acc_altitude_m; /* altitude found by integrating accel */
-        float baro_altitude_m; /* altitude found with pressure */
-        float reference_altitude_m;
-        float agl_altitude_m;
+        real ang_vel_x_ds;
+        real ang_vel_y_ds;
+        real ang_vel_z_ds;
 
-        float acc_velocity_mps;
-        float baro_velocity_mps;
-        float fused_velocity_mps;
+        real baro_altitude_m; /* altitude found with pressure */
+        real reference_altitude_m;
+        real agl_altitude_m;
 
-        float pressure_pascals; /* pressure */
-        float temperature_c; /* temperature */
-        float gps_altitude_m; /* 0 */
+        real estimated_accel_x_mps2;
+        real estimated_accel_y_mps2;
+        real estimated_accel_z_mps2;
+        real estimated_altitude_m;
+        real estimated_upward_velocity_mps;
+
+        real pressure_pascals; /* pressure */
+        real temperature_c; /* temperature */
 
         state current_state;
-        float motor_target_degrees;
-        float motor_actual_degrees;
-        float motor_commanded_power;
+        real motor_target_degrees;
+        real motor_actual_degrees;
+        real motor_commanded_power;
 
-        float flap_target_degrees;
+        real flap_target_degrees;
 
-        int fix_status;
+        static void print_packet_header();
+        void print_packet() const;
     };
 
     /**
@@ -90,7 +94,7 @@ struct airbrakes_state {
      * Calculates the next state in the finite state machine based on the rocket
      * state. If we aren't going to transition this step, returns nullopt.
      */
-    std::optional<state> next();
+    std::optional<state> next(const vec3 &filtered_acceleration);
 
     /** get some base values */
     void init();
@@ -128,28 +132,15 @@ struct airbrakes_state {
 
     int packet_count;
 
+    bool force_log = false;
+
     real time;
     real last_time;
     real last_log;
-    real delta_time;
-    real acc_altitude;
-    real pressure;
-    real reference_altitude;
-    real baro_altitude;
-    real temperature;
-    real last_baro_altitude = NAN;
-    real baro_velocity;
-    real target_altitude = 1738.0f;
-    real flap_target_degrees;
-    real fused_velocity;
-    real state_time = 0;
-    real last_vtime = 0;
+    real reference_altitude_m;
 
-    vec3 velocity;
-    vec3 acceleration;
-    vec3 angular_velocity;
-    vec3 filtered_acceleration;
-    vec3 last_acceleration;
+    flight_packet packet;
+    filter state_estimate;
 };
 
 #endif // AIRBRAKES_STATE_H_

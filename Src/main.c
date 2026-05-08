@@ -582,7 +582,7 @@ void imu_update(void *argument)
   {
     airbrakes_imu_update();
 
-    osDelay(40);
+    osDelay(10);
   }
   /* USER CODE END imu_update */
 }
@@ -602,7 +602,7 @@ void baro_update(void *argument)
   {
     airbrakes_baro_update();
 
-    osDelay(40);
+    osDelay(10);
   }
   /* USER CODE END baro_update */
 }

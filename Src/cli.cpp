@@ -7,18 +7,12 @@
 #include <sdk/usbtransport.hpp>
 #include <sdk/cli.hpp>
 
+bool cli_disabled = false;
+
 sdk::usb_transport<> cli_transport;
 sdk::cli *global_cli;
 
 static constexpr sdk::cli::command cli_commands[] = {
-    {
-        "status",
-        [](sdk::cli &c, int, char *[]) {
-            c.println("Hello bro");
-            return 0;
-        },
-        "Report status of airbrakes system."
-    },
     {
         "erase",
         [](sdk::cli &c, int, char *[]) {
@@ -36,40 +30,14 @@ static constexpr sdk::cli::command cli_commands[] = {
     },
     {
         "dump",
-        [](sdk::cli &c, int, char *[]) {
-            c.println("packet_id,time_s,accel_x_mps2,accel_y_mps2,accel_z_mps2,ang_vel_x_ds,ang_vel_y_ds,ang_vel_z_ds,acc_altitude_m,baro_altitude_m,reference_altitude_m,agl_altitude_m,acc_velocity_mps,baro_velocity_mps,fused_velocity_mps,pressure_pascals,temperature_c,gps_altitude_m,current_state,motor_target_degrees,motor_actual_degrees,motor_commanded_power,flap_target_degrees,fix_status");
+        [](sdk::cli &, int, char *[]) {
+            airbrakes_state::flight_packet::print_packet_header();
             int i = 0;
             for (;;) {
                 airbrakes_state::flight_packet packet = state_handle->read_packet(i++);
                 if (packet.packet_id != i - 1)
                     break;
-                printf(
-                    "%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f,%.2f,%d\r\n",
-                    packet.packet_id,
-                    packet.time_s,
-                    packet.accel_x_mps2,
-                    packet.accel_y_mps2,
-                    packet.accel_z_mps2,
-                    packet.ang_vel_x_ds,
-                    packet.ang_vel_y_ds,
-                    packet.ang_vel_z_ds,
-                    packet.acc_altitude_m,
-                    packet.baro_altitude_m,
-                    packet.reference_altitude_m,
-                    packet.agl_altitude_m,
-                    packet.acc_velocity_mps,
-                    packet.baro_velocity_mps,
-                    packet.fused_velocity_mps,
-                    packet.pressure_pascals,
-                    packet.temperature_c,
-                    packet.gps_altitude_m,
-                    (int) packet.current_state,
-                    packet.motor_target_degrees,
-                    packet.motor_actual_degrees,
-                    packet.motor_commanded_power,
-                    packet.flap_target_degrees,
-                    packet.fix_status
-                );
+                packet.print_packet();
                 osDelay(10);
             }
             return 0;
@@ -98,6 +66,16 @@ static constexpr sdk::cli::command cli_commands[] = {
         },
         "Set target degrees of motor controller."
     },
+    {
+        "forcelog",
+        [](sdk::cli &, int, char *[]) {
+            airbrakes_state::flight_packet::print_packet_header();
+            state_handle->force_log = true;
+            cli_disabled = true;
+            return 0;
+        },
+        "Turns off CLI and switches to just printing flight packets. Too epic for normal use."
+    },
 };
 
 extern "C" {
@@ -121,7 +99,8 @@ void cli_init(void)
 
 void cli_receive(uint8_t *buf, uint32_t len)
 {
-    cli_transport.on_rx_isr(buf, len);
+    if (!cli_disabled)
+        cli_transport.on_rx_isr(buf, len);
 }
 
 void cli_transmit_completed(void)
@@ -131,7 +110,8 @@ void cli_transmit_completed(void)
 
 void cli_poll(void)
 {
-    global_cli->poll();
+    if (!cli_disabled)
+        global_cli->poll();
 }
 
 void cli_process_tx(void)
