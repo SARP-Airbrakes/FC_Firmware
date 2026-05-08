@@ -36,6 +36,8 @@ public:
         return estimate.segment<3>(3);
     }
 
+    vec3 get_filtered_acceleration(const vec3 &raw_acceleration_mps2) const;
+
     const auto &get_estimated_state() const {
         return estimate;
     }

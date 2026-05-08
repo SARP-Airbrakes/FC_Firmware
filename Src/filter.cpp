@@ -2,10 +2,12 @@
 #include <filter.hpp>
 
 static const filter::vec3 ACCELEROMETER_VARIANCE = filter::vec3(1.5696e-3f, 1.5696e-3f, 1.8639e-3f);
-static const filter::vec3 ACCELEROMETER_BIAS_VARIANCE = filter::vec3(3.85e-6f, 3.85e-6f, 3.85e-6f);
 static const float BARO_VARIANCE = 0.08f;
+
+static const filter::vec3 ACCELEROMETER_BIAS_VARIANCE = filter::vec3(3.85e-6f, 3.85e-6f, 3.85e-6f);
 static const float BARO_BIAS_VARIANCE = 8e-4f;
 static const float BARO_MOVING_BIAS_VARIANCE = 1e-8f;
+
 static const filter::vec3 GRAVITY = filter::vec3(0, 0, -9.81f);
 
 filter::filter()
@@ -15,6 +17,11 @@ filter::filter()
 
     // we know nothing
     estimate_covariance = matS::Identity() * 10.0f;
+}
+
+filter::vec3 filter::get_filtered_acceleration(const vec3 &raw_acceleration_mps2) const
+{
+    return raw_acceleration_mps2 - estimate.segment<3>(6) + GRAVITY;
 }
 
 void filter::reinitialize(float altitude_m)
