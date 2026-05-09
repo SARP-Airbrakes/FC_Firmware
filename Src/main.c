@@ -55,7 +55,7 @@ UART_HandleTypeDef huart1;
 osThreadId_t controller_taskHandle;
 const osThreadAttr_t controller_task_attributes = {
   .name = "controller_task",
-  .stack_size = 256 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for flash_task */

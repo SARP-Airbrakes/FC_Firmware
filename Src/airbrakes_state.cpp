@@ -208,7 +208,7 @@ void airbrakes_state::execute()
     }
 
     // THIS SHOULD ALSO CHECK FOR TIME ON THE PAD
-    if (current_state == state::IDLE_PAD /* && time <= TIME_THRESHOLD */)
+    if (false/* current_state == state::IDLE_PAD && time <= TIME_THRESHOLD */)
         return;
 
     // Flight logging logic.
@@ -221,6 +221,7 @@ void airbrakes_state::execute()
     }
     if (time - last_log > 1.0f / frequency) {
         if (force_log) {
+            printf("aw dang it\r\n");
             packet.print_packet();
         }
         log();
@@ -260,14 +261,14 @@ void airbrakes_state::step()
         imu_state.acceleration_ms2.y,
         imu_state.acceleration_ms2.z
     );
+    /* 
     state_estimate.predict(delta_time, raw_acceleration);
 
-    /*
     if (current_state == state::IDLE_PAD)
         state_estimate.correct_accelerometer(raw_acceleration);
-    */
     state_estimate.correct_barometer(baro_state.altitude_meters);
 
+    */
     auto eigen_filtered_acceleration_mps2 =
         state_estimate.get_filtered_acceleration(raw_acceleration);
     vec3 filtered_acceleration_mps2 = vec3 {

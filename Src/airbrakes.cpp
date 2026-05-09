@@ -41,10 +41,9 @@ void airbrakes_initialize()
     sdk::motor_controller ctrl(1.8e-2f, 1.2e-3f, 5.0e-4f, std::move(drv),
             std::move(encoder));
 
-    static airbrakes_state state(std::move(imu), std::move(baro),
+    state_handle = (airbrakes_state_handle_t) malloc(sizeof(airbrakes_state));
+    new (state_handle) airbrakes_state(std::move(imu), std::move(baro),
             std::move(flash), std::move(ctrl));
-
-    state_handle = &state;
 
 }
 
