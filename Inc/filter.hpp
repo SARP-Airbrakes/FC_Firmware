@@ -2,10 +2,14 @@
 #ifndef AIRBRAKES_FILTER_HPP_
 #define AIRBRAKES_FILTER_HPP_
 
+#define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
+#define EIGEN_DONT_VECTORIZE
 #include <Eigen/Eigen>
 
 class filter {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
     static constexpr int STATE_DIMENSION = 11;
 
     using vec3 = Eigen::Vector3f;

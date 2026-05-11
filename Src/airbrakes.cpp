@@ -41,10 +41,14 @@ void airbrakes_initialize()
     sdk::motor_controller ctrl(1.8e-2f, 1.2e-3f, 5.0e-4f, std::move(drv),
             std::move(encoder));
 
+    /*
     state_handle = (airbrakes_state_handle_t) malloc(sizeof(airbrakes_state));
     new (state_handle) airbrakes_state(std::move(imu), std::move(baro),
             std::move(flash), std::move(ctrl));
-
+    */
+    static airbrakes_state state(std::move(imu), std::move(baro),
+            std::move(flash), std::move(ctrl), nullptr);
+    state_handle = &state;
 }
 
 void airbrakes_start(void)
@@ -59,7 +63,7 @@ void airbrakes_start(void)
     state_handle->imu.start();
 
     state_handle->baro.set_config(2);
-    state_handle->baro.set_odr(sdk::bmp390::odr::ODR_100);
+    state_handle->baro.set_odr(sdk::bmp390::odr::ODR_25);
     state_handle->baro.set_osr(
         sdk::bmp390::osr::OSR_4,
         sdk::bmp390::osr::OSR_4

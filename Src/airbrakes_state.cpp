@@ -9,9 +9,11 @@
 #include <cmath>
 
 airbrakes_state::airbrakes_state(bmi088 &&imu, bmp390 &&baro, w25q128jv &&flash,
-        motor_controller &&servo) : imu(std::forward<bmi088>(imu)),
-    baro(std::forward<bmp390>(baro)), flash(std::forward<w25q128jv>(flash)),
-    servo(std::forward<motor_controller>(servo)), flight_packet_queue(8)
+        motor_controller &&servo, filter *airbrakes_filter) :
+    imu(std::forward<bmi088>(imu)), baro(std::forward<bmp390>(baro)),
+    flash(std::forward<w25q128jv>(flash)),
+    servo(std::forward<motor_controller>(servo)), flight_packet_queue(8),
+    state_estimate(airbrakes_filter)
 {
 }
 
@@ -19,7 +21,7 @@ void airbrakes_state::init()
 {
     auto baro_state = baro.copy_state();
     reference_altitude_m = baro_state.altitude_meters;
-    state_estimate.reinitialize(baro_state.altitude_meters);
+    // state_estimate->reinitialize(baro_state.altitude_meters);
 }
 
 void airbrakes_state::flight_packet::print_packet_header()
@@ -91,7 +93,7 @@ void airbrakes_state::flight_packet::print_packet() const
 
 std::optional<airbrakes_state::state> airbrakes_state::next(const vec3 &filtered_acceleration_mps2)
 {
-    real vertical_velocity_mps = state_estimate.get_velocity()(2);
+    real vertical_velocity_mps = 0.0f; // state_estimate->get_velocity()(2);
     switch (current_state) {
     case state::IDLE_PAD:
         /* 
@@ -187,8 +189,8 @@ void airbrakes_state::execute()
         // Enforce closed state when we are not in active flight
         servo.set_target_degrees(0);
     } else if (current_state == state::ACTIVE_FLIGHT) {
-        float upward_velocity_mps = state_estimate.get_velocity()(2);
-        float altitude_m = state_estimate.get_position()(2);
+        float upward_velocity_mps = 0.0f; //state_estimate->get_velocity()(2);
+        float altitude_m = 0.0f; //state_estimate->get_position()(2);
         
         real target_cd = cd_controller_solve(
             upward_velocity_mps,
@@ -221,7 +223,6 @@ void airbrakes_state::execute()
     }
     if (time - last_log > 1.0f / frequency) {
         if (force_log) {
-            printf("aw dang it\r\n");
             packet.print_packet();
         }
         log();
@@ -233,6 +234,10 @@ void airbrakes_state::step()
 {
     time = get_tick_seconds();
     real delta_time = time - last_time;
+
+    if (delta_time < 1e-6)
+        return;
+
     last_time = time;
 
     packet.time_s = time;
@@ -261,28 +266,28 @@ void airbrakes_state::step()
         imu_state.acceleration_ms2.y,
         imu_state.acceleration_ms2.z
     );
-    /* 
-    state_estimate.predict(delta_time, raw_acceleration);
+    // state_estimate->predict(delta_time, raw_acceleration);
 
+    /*
     if (current_state == state::IDLE_PAD)
         state_estimate.correct_accelerometer(raw_acceleration);
-    state_estimate.correct_barometer(baro_state.altitude_meters);
-
     */
-    auto eigen_filtered_acceleration_mps2 =
-        state_estimate.get_filtered_acceleration(raw_acceleration);
-    vec3 filtered_acceleration_mps2 = vec3 {
-        eigen_filtered_acceleration_mps2(0),
-        eigen_filtered_acceleration_mps2(1),
-        eigen_filtered_acceleration_mps2(2)
-    };
+    // state_estimate.correct_barometer(baro_state.altitude_meters);
+
+    // auto eigen_filtered_acceleration_mps2 =
+        // state_estimate->get_filtered_acceleration(raw_acceleration);
+    vec3 filtered_acceleration_mps2; // = vec3 {
+        // eigen_filtered_acceleration_mps2(0),
+        // eigen_filtered_acceleration_mps2(1),
+        // eigen_filtered_acceleration_mps2(2)
+    // };
 
     packet.estimated_accel_x_mps2 = filtered_acceleration_mps2.x;
     packet.estimated_accel_y_mps2 = filtered_acceleration_mps2.y;
     packet.estimated_accel_z_mps2 = filtered_acceleration_mps2.z;
 
-    packet.estimated_altitude_m = state_estimate.get_position()(2);
-    packet.estimated_upward_velocity_mps = state_estimate.get_velocity()(2);
+    packet.estimated_altitude_m = 0.0f; // state_estimate->get_position()(2);
+    packet.estimated_upward_velocity_mps = 0.0f; //state_estimate->get_velocity()(2);
 
     // Switch the state if state transition is found.
     auto next_step = next(filtered_acceleration_mps2);
@@ -332,6 +337,6 @@ void airbrakes_state::update_flash()
 
 void airbrakes_state::log()
 {
-    flight_packet_queue.push_back(packet);
+    // flight_packet_queue.push_back(packet);
     packet = flight_packet();
 }

@@ -55,7 +55,7 @@ UART_HandleTypeDef huart1;
 osThreadId_t controller_taskHandle;
 const osThreadAttr_t controller_task_attributes = {
   .name = "controller_task",
-  .stack_size = 512 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for flash_task */
@@ -531,12 +531,11 @@ void controller_loop(void *argument)
   HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(LED_B_GPIO_Port, LED_B_Pin, GPIO_PIN_SET);
 
-  airbrakes_imu_update();
   airbrakes_start();
 
   /* Infinite loop */
 
-  osSemaphoreRelease(sensor_semaphoreHandle);
+  // osSemaphoreRelease(sensor_semaphoreHandle);
 
   for(;;)
   {
@@ -561,7 +560,7 @@ void flash_update(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    airbrakes_flash_pop_and_write();
+    // airbrakes_flash_pop_and_write();
     osDelay(40);
   }
   /* USER CODE END flash_update */
@@ -578,6 +577,9 @@ void imu_update(void *argument)
 {
   /* USER CODE BEGIN imu_update */
   /* Infinite loop */
+  // osSemaphoreAcquire(sensor_semaphoreHandle, osWaitForever);
+  // osSemaphoreRelease(sensor_semaphoreHandle);
+
   for(;;)
   {
     airbrakes_imu_update();
@@ -598,11 +600,14 @@ void baro_update(void *argument)
 {
   /* USER CODE BEGIN baro_update */
   /* Infinite loop */
+  // osSemaphoreAcquire(sensor_semaphoreHandle, osWaitForever);
+  // osSemaphoreRelease(sensor_semaphoreHandle);
+
   for(;;)
   {
     airbrakes_baro_update();
 
-    osDelay(10);
+    osDelay(40);
   }
   /* USER CODE END baro_update */
 }
