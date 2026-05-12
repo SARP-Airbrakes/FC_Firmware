@@ -88,7 +88,7 @@ struct airbrakes_state {
      * already properly initialized when moved.
      */
     airbrakes_state(bmi088 &&imu, bmp390 &&baro, w25q128jv &&flash,
-            motor_controller &&servo, filter *airbrakes_filter);
+            motor_controller &&servo);
 
     /**
      * Calculates the next state in the finite state machine based on the rocket

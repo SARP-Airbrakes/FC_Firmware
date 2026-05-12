@@ -47,7 +47,7 @@ void airbrakes_initialize()
             std::move(flash), std::move(ctrl));
     */
     static airbrakes_state state(std::move(imu), std::move(baro),
-            std::move(flash), std::move(ctrl), nullptr);
+            std::move(flash), std::move(ctrl));
     state_handle = &state;
 }
 

@@ -2,15 +2,13 @@
 #ifndef AIRBRAKES_FILTER_HPP_
 #define AIRBRAKES_FILTER_HPP_
 
-#define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
-#define EIGEN_DONT_VECTORIZE
 #include <Eigen/Eigen>
 
 class filter {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    static constexpr int STATE_DIMENSION = 11;
+    static constexpr int STATE_DIMENSION = 5;
 
     using vec3 = Eigen::Vector3f;
     using vecS = Eigen::Matrix<float, STATE_DIMENSION, 1>;
@@ -32,12 +30,12 @@ public:
     // thus that any acceleration on the pad measured is bias.
     void correct_accelerometer(const vec3 &acceleration_mps2);
 
-    auto get_position() const {
-        return estimate.segment<3>(0);
+    float get_position() const {
+        return estimate(0);
     }
 
-    auto get_velocity() const {
-        return estimate.segment<3>(3);
+    float get_velocity() const {
+        return estimate(1);
     }
 
     vec3 get_filtered_acceleration(const vec3 &raw_acceleration_mps2) const;
