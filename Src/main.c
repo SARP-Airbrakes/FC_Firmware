@@ -560,7 +560,7 @@ void flash_update(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    // airbrakes_flash_pop_and_write();
+    airbrakes_flash_pop_and_write();
     osDelay(40);
   }
   /* USER CODE END flash_update */

@@ -100,7 +100,7 @@ std::optional<airbrakes_state::state> airbrakes_state::next(const vec3 &filtered
          * This transition should occur on launch.
          */
         if (filtered_acceleration_mps2.z > IDLE_FLIGHT_MIN_ACCEL && 
-                vertical_velocity_mps > 15.0f)
+                vertical_velocity_mps > 5.0f)
             return state::IDLE_FLIGHT;
         return std::nullopt;
     case state::IDLE_FLIGHT:
@@ -112,7 +112,7 @@ std::optional<airbrakes_state::state> airbrakes_state::next(const vec3 &filtered
         if (velocity.magnitude_sqr() < ACTIVE_FLIGHT_MAX_VELOCITY_SQR)
             return state::ACTIVE_FLIGHT;
         */
-        if (filtered_acceleration_mps2.z < -10.0f)
+        if (filtered_acceleration_mps2.z < -12.0f)
             return state::ACTIVE_FLIGHT;
         return std::nullopt;
     case state::ACTIVE_FLIGHT:
@@ -210,7 +210,7 @@ void airbrakes_state::execute()
     }
 
     // THIS SHOULD ALSO CHECK FOR TIME ON THE PAD
-    if (false/* current_state == state::IDLE_PAD && time <= TIME_THRESHOLD */)
+    if (!force_log && (current_state == state::IDLE_PAD /* time <= TIME_THRESHOLD */))
         return;
 
     // Flight logging logic.
@@ -335,6 +335,7 @@ void airbrakes_state::update_flash()
 
 void airbrakes_state::log()
 {
-    // flight_packet_queue.push_back(packet);
+    if (!force_log)
+        flight_packet_queue.push_back(packet);
     packet = flight_packet();
 }

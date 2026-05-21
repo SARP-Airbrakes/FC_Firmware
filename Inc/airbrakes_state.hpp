@@ -21,7 +21,7 @@ using namespace sdk;
 struct airbrakes_state {
     
     // Minimum jerk for a transition from IDLE_PAD -> IDLE_FLIGHT
-    static constexpr real IDLE_FLIGHT_MIN_ACCEL = 20.0f;
+    static constexpr real IDLE_FLIGHT_MIN_ACCEL = 10.0f;
     // Maximum rocket velocity where we can actuate motor. Mach 0.7
     static constexpr real ACTIVE_FLIGHT_MAX_VELOCITY = 230.0f;
     static constexpr real ACTIVE_FLIGHT_MAX_VELOCITY_SQR =
@@ -29,10 +29,10 @@ struct airbrakes_state {
     static constexpr real IDLE_RECOVERY_MAX_ALTITUDE = 1000.0f;
  
     static constexpr real TARGET_ALTITUDE = 1738.0f;
-    static constexpr real TIME_THRESHOLD = 60.0f;
+    static constexpr real TIME_THRESHOLD = 10.0f;
 
     // Frequency in which flight data is logged in idle modes, in Hz
-    static constexpr real IDLE_LOGGING_FREQ = 2.0f;
+    static constexpr real IDLE_LOGGING_FREQ = 20.0f;
     // Frequency in which flight data is logged in active mode, in Hz
     static constexpr real ACTIVE_LOGGING_FREQ = 20.0f;
     
