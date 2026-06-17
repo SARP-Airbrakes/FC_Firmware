@@ -174,7 +174,7 @@ int main(void)
   osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  cli_init();
+  // cli_init();
   airbrakes_initialize();
 
   /* add mutexes, ... */
@@ -540,7 +540,7 @@ void controller_loop(void *argument)
 
   for(;;)
   {
-    cli_poll();
+    // cli_poll();
     airbrakes_step();
     
     osDelay(10);

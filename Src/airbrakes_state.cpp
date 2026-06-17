@@ -139,7 +139,7 @@ void airbrakes_state::execute()
     }
 
     // THIS SHOULD ALSO CHECK FOR TIME ON THE PAD
-    if (current_state == state::IDLE_PAD /* && time <= TIME_THRESHOLD */)
+    if (current_state == state::IDLE_PAD && time <= TIME_THRESHOLD)
         return;
 
     // Flight logging logic.
