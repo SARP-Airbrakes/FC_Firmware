@@ -4,7 +4,7 @@
 
 mod cli;
 
-use panic_halt as _;
+use panic_semihosting as _;
 
 use rtic::app;
 use rtic_sync::{channel::Receiver, make_channel};
@@ -22,11 +22,9 @@ use cli::{
 
 type Mono = stm32f4xx_hal::timer::monotonics::MonoTimerUs<pac::TIM2>;
 
-
 #[app(device = pac, peripherals = true)]
 mod app {
     
-
     use super::*;
 
     #[shared]

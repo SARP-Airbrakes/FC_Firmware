@@ -11,7 +11,7 @@ use crate::{
     cli::command::Base
 };
 
-pub const USB_SPLIT_WRITER_LEN: usize = 64;
+pub const USB_SPLIT_WRITER_LEN: usize = 128;
 const USB_MANUFACTURER_STRING: &str = "Society for Advanced Rocket Propulsion";
 const USB_PRODUCT_STRING: &str = "Airbrakes Flight Computer";
 const USB_SERIAL_NUMBER_STRING: &str = env!("CARGO_PKG_VERSION");
@@ -69,7 +69,8 @@ pub async fn usb_write(cx: usb_write::Context<'_>, mut receiver: Receiver<'stati
 
     while let Ok(b) = receiver.recv().await {
         serial_device.lock(|serial_device| {
-            serial_device.usb_serial.write(&[b]).unwrap(); // TODO: replace this .unwrap
+            // TODO: replace this .unwrap
+            while let Err(_) = serial_device.usb_serial.write(&[b]) {}
         });
     }
 }
