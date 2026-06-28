@@ -1,7 +1,10 @@
 
 use embedded_cli::cli::CliBuilder;
+use rtic::mutex_prelude::*;
 use rtic_sync::channel::Sender;
 use static_cell::StaticCell;
+
+use crate::{app::cli_process, cli::command::Base};
 
 pub mod usb;
 pub mod writer;
@@ -12,14 +15,13 @@ pub const HISTORY_BUFFER_LEN: usize = 128;
 
 pub struct Cli(pub embedded_cli::cli::Cli<
     writer::ChannelWriter<'static, { usb::USB_SPLIT_WRITER_LEN }>,
-    core::convert::Infallible,
+    writer::ChannelWriterError,
     [u8; COMMAND_BUFFER_LEN],
     [u8; HISTORY_BUFFER_LEN],
 >);
 
 impl Cli {
     pub fn new(s: Sender<'static, u8, { usb::USB_SPLIT_WRITER_LEN }>) -> Cli {
-        // TODO
         static COMMAND_BUFFER: StaticCell<[u8; COMMAND_BUFFER_LEN]> = StaticCell::new();
         static HISTORY_BUFFER: StaticCell<[u8; HISTORY_BUFFER_LEN]> = StaticCell::new();
 
@@ -34,4 +36,14 @@ impl Cli {
 
         Cli(cli)
     }
+}
+
+pub async fn cli_process(cx: cli_process::Context<'_>, bytes: [u8; 64], count: usize) {
+    let mut cli = cx.shared.cli;
+
+    cli.lock(|cli| {
+        for i in 0..count {
+            Base::process_byte(cli, bytes[i]);
+        }
+    });
 }

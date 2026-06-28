@@ -1,6 +1,11 @@
 
 use rtic_sync::channel::Sender;
 
+#[derive(Debug)]
+pub enum ChannelWriterError {
+    Full
+}
+
 pub struct ChannelWriter<'a, const CAPACITY: usize>(pub Sender<'a, u8, CAPACITY>);
 
 impl<'a, const CAPACITY: usize> usbd_serial::embedded_io::Write for ChannelWriter<'a, CAPACITY> {
@@ -9,7 +14,7 @@ impl<'a, const CAPACITY: usize> usbd_serial::embedded_io::Write for ChannelWrite
         for &b in buf {
             match self.0.try_send(b) {
                 Ok(()) => written += 1,
-                _ => {} // TODO
+                Err(_) => return Err(ChannelWriterError::Full)
             }
         }
         Ok(written)
@@ -21,6 +26,13 @@ impl<'a, const CAPACITY: usize> usbd_serial::embedded_io::Write for ChannelWrite
 }
 
 impl<'a, const CAPACITY: usize> usbd_serial::embedded_io::ErrorType for ChannelWriter<'a, CAPACITY> {
-    // TODO
-    type Error = core::convert::Infallible;
+    type Error = ChannelWriterError;
+}
+
+impl usbd_serial::embedded_io::Error for ChannelWriterError {
+    fn kind(&self) -> usbd_serial::embedded_io::ErrorKind {
+        match self {
+            ChannelWriterError::Full => usbd_serial::embedded_io::ErrorKind::WriteZero
+        }
+    }
 }

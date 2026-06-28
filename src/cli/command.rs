@@ -12,16 +12,16 @@ pub enum Base {
 impl Base {
 
     pub fn process_byte(cli: &mut Cli, b: u8) {
-        cli.0.process_byte::<Base, _>(b, &mut Base::processor(|cli, command| {
+        let _ = cli.0.process_byte::<Base, _>(b, &mut Base::processor(|cli, command| {
             match command {
                 Base::Hello => {
-                    cli.writer().writeln_str("Hello bro");
+                    let _ = cli.writer().writeln_str("Hello bro");
                 },
                 Base::Version => {
-                    cli.writer().writeln_str("Airbrakes flight software");
-                    cli.writer().writeln_str("(c) Society for Advanced Rocket Propulsion");
-                    cli.writer().write_str("Version ");
-                    cli.writer().writeln_str(env!("CARGO_PKG_VERSION"));
+                    let _ = cli.writer().writeln_str("Airbrakes flight software");
+                    let _ = cli.writer().writeln_str("(c) Society for Advanced Rocket Propulsion");
+                    let _ = cli.writer().write_str("Version ");
+                    let _ = cli.writer().writeln_str(env!("CARGO_PKG_VERSION"));
                 }
             };
             Ok(())

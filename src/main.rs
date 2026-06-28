@@ -17,12 +17,13 @@ use stm32f4xx_hal::otg_fs::USB;
 
 use cli::{
     Cli,
+    cli_process,
     usb::{usb_fs, usb_write, USB_SPLIT_WRITER_LEN, UsbSerialDevice}
 };
 
 type Mono = stm32f4xx_hal::timer::monotonics::MonoTimerUs<pac::TIM2>;
 
-#[app(device = pac, peripherals = true)]
+#[app(device = pac, peripherals = true, dispatchers=[USART6])]
 mod app {
     
     use super::*;
@@ -78,11 +79,14 @@ mod app {
     }
 
     extern "Rust" {
-        #[task(binds=OTG_FS, shared=[serial_device, cli])]
+        #[task(binds=OTG_FS, shared=[serial_device])]
         fn usb_fs(cx: usb_fs::Context);
 
-        #[task(shared=[serial_device])]
+        #[task(priority=2, shared=[serial_device])]
         async fn usb_write(cx: usb_write::Context, mut receiver: Receiver<'static, u8, USB_SPLIT_WRITER_LEN>);
+
+        #[task(shared=[cli])]
+        async fn cli_process(cx: cli_process::Context, bytes: [u8; 64], count: usize);
     }
 
     #[task(local = [led])]
