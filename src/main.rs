@@ -3,6 +3,7 @@
 #![no_std]
 
 mod cli;
+mod bmi088;
 
 use panic_semihosting as _;
 
