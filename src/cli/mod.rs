@@ -1,6 +1,5 @@
 
 use embedded_cli::cli::CliBuilder;
-use rtic::mutex_prelude::*;
 use rtic_sync::channel::Sender;
 use static_cell::StaticCell;
 
@@ -39,11 +38,9 @@ impl Cli {
 }
 
 pub async fn cli_process(cx: cli_process::Context<'_>, bytes: [u8; 64], count: usize) {
-    let mut cli = cx.shared.cli;
+    let cli = cx.local.cli;
 
-    cli.lock(|cli| {
-        for i in 0..count {
-            Base::process_byte(cli, bytes[i]);
-        }
-    });
+    for i in 0..count {
+        Base::process_byte(cli, bytes[i]);
+    }
 }

@@ -1,4 +1,4 @@
-use embedded_hal::i2c::{I2c, SevenBitAddress};
+use embedded_hal::{delay::DelayNs, i2c::{I2c, SevenBitAddress}};
 
 
 pub mod regs;
@@ -6,7 +6,7 @@ mod measurements;
 
 pub use measurements::*;
 
-use crate::bmi088::regs::BMI088_ACC_X_LSB;
+use crate::filter::{Measure, Measurement};
 
 pub struct Bmi088<I> {
     i2c: I,
@@ -14,6 +14,7 @@ pub struct Bmi088<I> {
     sdo2_high: bool, /* for GYRO address */
 }
 
+#[derive(Debug)]
 pub enum Error<E> {
     I2c(E)
 }
@@ -51,11 +52,20 @@ where
 
     pub fn read_acc(&mut self) -> Result<Bmi088Acceleration, Error<E>> {
         let mut data = [0u8; 6];
-        self.read_bytes(Bmi088Device::ACC, BMI088_ACC_X_LSB, &mut data).map_err(Error::I2c)?;
+        self.read_bytes(Bmi088Device::ACC, regs::BMI088_ACC_X_LSB, &mut data).map_err(Error::I2c)?;
         let x = i16::from_le_bytes([data[0], data[1]]);
         let y = i16::from_le_bytes([data[2], data[3]]);
         let z = i16::from_le_bytes([data[4], data[5]]);
         Ok(Bmi088Acceleration::new(x, y, z))
+    }
+
+    pub fn init(&mut self, delay: &mut dyn DelayNs) -> Result<(), Error<E>> {
+        // See section 3
+        delay.delay_ms(1);
+        self.write_u8(Bmi088Device::ACC, regs::BMI088_ACC_PWR_CTRL, 0x04)
+            .map_err(Error::I2c)?; 
+        delay.delay_ms(50);
+        Ok(())
     }
 
     fn i2c_addr(&self, device: Bmi088Device) -> u8 {
@@ -88,3 +98,4 @@ where
         Ok(())
     }
 }
+
