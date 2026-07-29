@@ -2,9 +2,7 @@
 #![no_main]
 #![no_std]
 
-mod bmi088;
 mod cli;
-mod filter;
 
 use panic_semihosting as _;
 
@@ -20,37 +18,34 @@ use stm32f4xx_hal::pac;
 use stm32f4xx_hal::prelude::*;
 use stm32f4xx_hal::rcc::Config;
 use stm32f4xx_hal::otg_fs::USB;
-use stm32f4xx_hal::i2c::{self, I2c, I2c1};
 use stm32f4xx_hal::timer;
+use embedded_cli::cli::CliBuilder;
 
-use bmi088::Bmi088;
-use filter::{Filter, Sensor, SensorKick, Measurement, FilterReceiver, filter_process};
-use cli::{
-    Cli,
-    cli_process,
-    usb::{usb_fs, usb_write, USB_SPLIT_WRITER_LEN, UsbSerialDevice}
-};
+use cli::usb::UsbSerialDevice;
 
 type Mono = stm32f4xx_hal::timer::monotonics::MonoTimerUs<pac::TIM2>;
+
+const CLI_PROCESS_LEN: usize = 64;
 
 #[app(device = pac, peripherals = true, dispatchers=[SPI2, USART6])]
 mod app {
 
-    use super::*;
+use rtic_sync::channel::Sender;
+use static_cell::StaticCell;
+
+use super::*;
 
     #[shared]
     struct Shared {
         serial_device: UsbSerialDevice,
-        filter: Filter,
         delay: timer::DelayMs<pac::TIM1>,
-        bmi: Sensor,
     }
 
     #[local]
     struct Local {
-        cli: Cli,
+        cli: cli::Cli,
+        cli_processor_sender: Sender<'static, u8, CLI_PROCESS_LEN>,
         led: PB2<Output<PushPull>>,
-        bmi: Bmi088<I2c1>,
         /*
         encoder: RotaryEncoder<
             QuadratureTableMode,
@@ -76,6 +71,7 @@ mod app {
 
         blink::spawn().ok();
 
+        /* USB */
         let usb = USB {
             usb_global: dp.OTG_FS_GLOBAL,
             usb_device: dp.OTG_FS_DEVICE,
@@ -84,13 +80,25 @@ mod app {
             pin_dp: gpioa.pa12.into(),
             hclk: rcc.clocks.hclk(),
         };
-        let serial_device = crate::cli::usb::initialize_usb(usb);
-        let cli = {
-            let (s, r) = make_channel!(u8, USB_SPLIT_WRITER_LEN);
-            usb_write::spawn(r).unwrap();
-            cli::Cli::new(s)
-        };
+        let serial_device = UsbSerialDevice::new(usb);
 
+        /* CLI */
+        static COMMAND_BUFFER: StaticCell<[u8; cli::COMMAND_BUFFER_LEN]> = StaticCell::new();
+        static HISTORY_BUFFER: StaticCell<[u8; cli::HISTORY_BUFFER_LEN]> = StaticCell::new();
+
+        let cli = CliBuilder::default()
+            .writer(cli::writer::FnWriter(|buf| { for byte in buf { usb_write::spawn(*byte).ok(); }; }))
+            .command_buffer(*COMMAND_BUFFER.init([0u8; cli::COMMAND_BUFFER_LEN]))
+            .history_buffer(*HISTORY_BUFFER.init([0u8; cli::HISTORY_BUFFER_LEN]))
+            .build()
+            .ok()
+            .unwrap();
+
+        /* CLI processor */
+        let (s, r) = make_channel!(u8, CLI_PROCESS_LEN);
+        cli_process::spawn(r).ok();
+
+        /*
         let sda = gpiob.pb9;
         let scl = gpiob.pb8;
         let i2c = I2c::new(
@@ -99,15 +107,7 @@ mod app {
             i2c::Mode::standard(100.kHz()), 
             &mut rcc
         );
-
-        let filter = {
-            let (filter, r) = Filter::new();
-            filter_process::spawn(r).unwrap();
-            filter
-        };
-        
-        let mut bmi = Bmi088::new(i2c);
-        bmi.init(&mut delay).unwrap();
+        */
 
         /*
         let gpioc = dp.GPIOC.split(&mut rcc);
@@ -129,45 +129,46 @@ mod app {
         (
             Shared {
                 serial_device,
-                bmi: Sensor::new(20.Hz(), &filter),
                 delay,
-                filter,
             },
             Local {
                 led,
+                cli_processor_sender: s,
                 cli,
-                bmi,
             }
         )
     }
 
-    #[idle(shared=[delay, bmi])]
+    #[idle(shared=[delay])]
     fn idle(mut cx: idle::Context) -> ! {
         loop {
-            cx.shared.bmi.lock(|bmi| {
-                match bmi.kick() {
-                    SensorKick::Kick => {
-                        bmi_measure::spawn().ok();
-                    },
-                    _ => {}
-                }
-            });
-            cx.shared.delay.lock(|delay| delay.delay_ms(1));
         }
     }
 
-    extern "Rust" {
-        #[task(binds=OTG_FS, shared=[serial_device])]
-        fn usb_fs(cx: usb_fs::Context);
+    #[task(binds=OTG_FS, shared=[serial_device], local=[cli_processor_sender])]
+    fn usb_fs(mut cx: usb_fs::Context) {
+        cx.shared.serial_device.lock(|serial_device| {
+            serial_device.poll(|buf| {
+                for byte in buf {
+                    // ehhh this is prolly fine
+                    cx.local.cli_processor_sender.try_send(*byte).ok();
+                }
+            });
+        });
+    }
 
-        #[task(priority=2, shared=[serial_device])]
-        async fn usb_write(cx: usb_write::Context, mut receiver: Receiver<'static, u8, USB_SPLIT_WRITER_LEN>);
+    #[task(priority=2, shared=[serial_device])]
+    async fn usb_write(mut cx: usb_write::Context, byte: u8) {
+        cx.shared.serial_device.lock(|serial_device| {
+            serial_device.write(&[byte]);
+        });
+    }
 
-        #[task(priority=1, local=[cli])]
-        async fn cli_process(cx: cli_process::Context, bytes: [u8; 64], count: usize);
-
-        #[task(priority=1, shared=[filter])]
-        async fn filter_process(mut cx: filter_process::Context, mut receiver: FilterReceiver);
+    #[task(priority=1, local=[cli])]
+    async fn cli_process(cx: cli_process::Context, mut r: Receiver<'static, u8, CLI_PROCESS_LEN>) {
+        while let Ok(b) = r.recv().await {
+            crate::cli::Base::process_byte(cx.local.cli, b);
+        }
     }
 
     #[task(priority=1, local = [led])]
@@ -175,16 +176,6 @@ mod app {
         loop {
             cx.local.led.toggle();
             Mono::delay(500.millis().into()).await;
-        }
-    }
-
-    #[task(priority=1, shared=[bmi], local=[bmi])]
-    async fn bmi_measure(mut cx: bmi_measure::Context) {
-        if let Ok(m) = cx.local.bmi.read_acc() {
-            cx.shared.bmi.lock(|bmi| {
-                // ignore
-                bmi.try_send(Measurement::ACC(m)).ok();
-            });
         }
     }
 

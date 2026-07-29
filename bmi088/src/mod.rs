@@ -6,8 +6,6 @@ mod measurements;
 
 pub use measurements::*;
 
-use crate::filter::{Measure, Measurement};
-
 pub struct Bmi088<I> {
     i2c: I,
     sdo1_high: bool, /* for ACC address */

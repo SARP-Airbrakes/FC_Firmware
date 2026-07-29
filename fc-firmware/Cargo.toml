@@ -1,0 +1,27 @@
+[package]
+name = "FC_Firmware"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.5"
+embedded-cli = "0.2.1"
+embedded-hal = "1.0.0"
+embedded-io = "0.7.1"
+nb = "1.1.0"
+panic-halt = "1.0.0"
+panic-semihosting = "0.6.0"
+rotary-encoder-embedded = "0.5.0"
+rtic = "2.2.0"
+rtic-monotonics = { version = "2.1.0", features = ["cortex-m-systick"] }
+rtic-sync = "1.4.0"
+static_cell = "2.1.1"
+stm32f4xx-hal = { version = "0.23.0", features = ["rtic-tim2", "rtic2", "stm32f411", "usb_fs"] }
+ufmt = "0.2.0"
+usb-device = "0.3.2"
+usbd-serial = "0.2.2"
+
+[[bin]]
+name = "FC_Firmware"
+test = false

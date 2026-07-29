@@ -1,7 +1,19 @@
 
 use embedded_cli::Command;
 
-use crate::cli::Cli;
+pub mod usb;
+pub mod writer;
+
+pub const COMMAND_BUFFER_LEN: usize = 64;
+pub const HISTORY_BUFFER_LEN: usize = 128;
+
+pub type Cli = embedded_cli::cli::Cli<
+    writer::FnWriter,
+    core::convert::Infallible,
+    [u8; COMMAND_BUFFER_LEN],
+    [u8; HISTORY_BUFFER_LEN],
+>;
+
 
 #[derive(Command)]
 pub enum Base {
@@ -12,7 +24,7 @@ pub enum Base {
 impl Base {
 
     pub fn process_byte(cli: &mut Cli, b: u8) {
-        let _ = cli.0.process_byte::<Base, _>(b, &mut Base::processor(|cli, command| {
+        let _ = cli.process_byte::<Base, _>(b, &mut Base::processor(|cli, command| {
             match command {
                 Base::Hello => {
                     let _ = cli.writer().writeln_str("Hello bro");
