@@ -20,6 +20,7 @@ use stm32f4xx_hal::rcc::Config;
 use stm32f4xx_hal::otg_fs::USB;
 use stm32f4xx_hal::timer;
 use embedded_cli::cli::CliBuilder;
+use bmi088::Bmi088;
 
 use cli::usb::UsbSerialDevice;
 
@@ -30,22 +31,25 @@ const CLI_PROCESS_LEN: usize = 64;
 #[app(device = pac, peripherals = true, dispatchers=[SPI2, USART6])]
 mod app {
 
-use rtic_sync::channel::Sender;
-use static_cell::StaticCell;
+    use rtic_sync::channel::Sender;
+    use static_cell::StaticCell;
+    use stm32f4xx_hal::{i2c, i2c::{I2c, I2c1}};
+use ufmt::uwrite;
 
-use super::*;
+    use super::*;
 
     #[shared]
     struct Shared {
+        cli: cli::Cli,
         serial_device: UsbSerialDevice,
         delay: timer::DelayMs<pac::TIM1>,
     }
 
     #[local]
     struct Local {
-        cli: cli::Cli,
         cli_processor_sender: Sender<'static, u8, CLI_PROCESS_LEN>,
         led: PB2<Output<PushPull>>,
+        bmi: Bmi088<I2c1>,
         /*
         encoder: RotaryEncoder<
             QuadratureTableMode,
@@ -98,7 +102,6 @@ use super::*;
         let (s, r) = make_channel!(u8, CLI_PROCESS_LEN);
         cli_process::spawn(r).ok();
 
-        /*
         let sda = gpiob.pb9;
         let scl = gpiob.pb8;
         let i2c = I2c::new(
@@ -107,7 +110,8 @@ use super::*;
             i2c::Mode::standard(100.kHz()), 
             &mut rcc
         );
-        */
+        let mut bmi = Bmi088::new(i2c);
+        bmi.init(&mut delay).unwrap();
 
         /*
         let gpioc = dp.GPIOC.split(&mut rcc);
@@ -128,13 +132,14 @@ use super::*;
 
         (
             Shared {
+                cli,
                 serial_device,
                 delay,
             },
             Local {
                 led,
                 cli_processor_sender: s,
-                cli,
+                bmi
             }
         )
     }
@@ -164,16 +169,30 @@ use super::*;
         });
     }
 
-    #[task(priority=1, local=[cli])]
-    async fn cli_process(cx: cli_process::Context, mut r: Receiver<'static, u8, CLI_PROCESS_LEN>) {
+    #[task(priority=1, shared=[cli])]
+    async fn cli_process(mut cx: cli_process::Context, mut r: Receiver<'static, u8, CLI_PROCESS_LEN>) {
         while let Ok(b) = r.recv().await {
-            crate::cli::Base::process_byte(cx.local.cli, b);
+            cx.shared.cli.lock(|cli| {
+                crate::cli::Base::process_byte(cli, b);
+            });
         }
     }
 
-    #[task(priority=1, local = [led])]
-    async fn blink(cx: blink::Context) {
+    #[task(priority=1, shared=[cli], local = [led, bmi])]
+    async fn blink(mut cx: blink::Context) {
         loop {
+            if let Ok(m) = cx.local.bmi.read_acc() {
+                cx.shared.cli.lock(|cli| {
+                    cli.write(|w| {
+                        uwrite!(w, "{} {} {}", 
+                            m.x_raw(),
+                            m.y_raw(),
+                            m.z_raw()
+                        );
+                        Ok(())
+                    });
+                });
+            }
             cx.local.led.toggle();
             Mono::delay(500.millis().into()).await;
         }
