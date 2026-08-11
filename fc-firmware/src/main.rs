@@ -102,8 +102,8 @@ mod app {
         let (s, r) = make_channel!(u8, CLI_PROCESS_LEN);
         cli_process::spawn(r).ok();
 
-        let sda = gpiob.pb9;
-        let scl = gpiob.pb8;
+        let sda = gpiob.pb9.into_alternate_open_drain();
+        let scl = gpiob.pb8.into_alternate_open_drain();
         let i2c = I2c::new(
             dp.I2C1,
             (scl, sda), 
