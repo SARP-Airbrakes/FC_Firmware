@@ -34,7 +34,7 @@ mod app {
     use rtic_sync::channel::Sender;
     use static_cell::StaticCell;
     use stm32f4xx_hal::{i2c, i2c::{I2c, I2c1}};
-use ufmt::uwrite;
+    use ufmt::uwrite;
 
     use super::*;
 
@@ -111,7 +111,6 @@ use ufmt::uwrite;
             &mut rcc
         );
         let mut bmi = Bmi088::new(i2c);
-        bmi.init(&mut delay).unwrap();
 
         /*
         let gpioc = dp.GPIOC.split(&mut rcc);
@@ -180,6 +179,7 @@ use ufmt::uwrite;
 
     #[task(priority=1, shared=[cli], local = [led, bmi])]
     async fn blink(mut cx: blink::Context) {
+        cx.local.bmi.init().ok();
         loop {
             if let Ok(m) = cx.local.bmi.read_acc() {
                 cx.shared.cli.lock(|cli| {

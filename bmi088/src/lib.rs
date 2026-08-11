@@ -59,12 +59,13 @@ where
         Ok(Bmi088Acceleration::new(x, y, z))
     }
 
-    pub fn init(&mut self, delay: &mut dyn DelayNs) -> Result<(), Error<E>> {
+    pub fn init(&mut self) -> Result<(), Error<E>> {
         // See section 3
-        delay.delay_ms(1);
+        // delay.delay_ms(1);
         self.write_u8(Bmi088Device::ACC, regs::BMI088_ACC_PWR_CTRL, 0x04)
             .map_err(Error::I2c)?; 
-        delay.delay_ms(50);
+        // delay.delay_ms(50);
+        
         Ok(())
     }
 
