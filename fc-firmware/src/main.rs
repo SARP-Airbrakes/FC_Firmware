@@ -179,7 +179,7 @@ mod app {
 
     #[task(priority=1, shared=[cli], local = [led, bmi])]
     async fn blink(mut cx: blink::Context) {
-        cx.local.bmi.init().ok();
+        cx.local.bmi.init().unwrap();
         loop {
             if let Ok(m) = cx.local.bmi.read_acc() {
                 cx.shared.cli.lock(|cli| {
