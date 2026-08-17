@@ -67,13 +67,19 @@ mod app {
     #[init]
     fn init(mut cx: init::Context) -> (Shared, Local) {
         let dp = cx.device;
-        let mut rcc = dp.RCC.freeze(Config::hse(16.MHz()).sysclk(48.MHz()));
+        let mut rcc = dp.RCC.freeze(
+            Config::hse(16.MHz())
+                .sysclk(16.MHz())
+                .hclk(16.MHz())
+                .pclk1(16.MHz())
+                .require_pll48clk()
+        );
 
         // let mut syscfg = dp.SYSCFG.constrain(&mut rcc);
 
         dp.TIM2.monotonic_us(&mut cx.core.NVIC, &mut rcc);
 
-        let delay = dp.TIM1.delay_ms(&mut rcc);
+        let mut delay = dp.TIM1.delay_ms(&mut rcc);
 
         let gpioa = dp.GPIOA.split(&mut rcc);
         let gpiob = dp.GPIOB.split(&mut rcc);
@@ -108,12 +114,23 @@ mod app {
         let (s, r) = make_channel!(u8, CLI_PROCESS_LEN);
         cli_process::spawn(r).ok();
 
-        let sda = gpiob.pb9.into_alternate_open_drain();
-        let scl = gpiob.pb8.into_alternate_open_drain();
+        let mut scl = gpiob.pb8.into_push_pull_output();
+        let sda = gpiob.pb9.into_floating_input();
+
+        /* clear the line if any sensors are doing stupid stuff */
+        for _ in 0..10 {
+            scl.set_low();
+            delay.delay_ms(10);
+            scl.set_high();
+            delay.delay_ms(10);
+        }
+
+        let sda = sda.into_alternate_open_drain();
+        let scl = scl.into_alternate_open_drain();
         let i2c = I2c::new(
             dp.I2C1,
             (scl, sda), 
-            i2c::Mode::standard(100.kHz()), 
+            i2c::Mode::standard(10.kHz()), 
             &mut rcc
         );
         let bmi = Bmi088::new(i2c);
@@ -177,7 +194,8 @@ mod app {
 
     #[task(priority=1, local = [led, bmi])]
     async fn blink(cx: blink::Context) {
-        defmt::info!("Starting initialization of BMI088.");
+        Mono::delay(5.millis().into()).await;
+        defmt::trace!("Starting initialization of BMI088.");
         cx.local.bmi.init().unwrap();
         defmt::trace!("Initialized BMI088, starting loop.");
         loop {

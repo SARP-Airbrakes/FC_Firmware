@@ -1,0 +1,28 @@
+{
+	"version": "2.0.0",
+	"options": {
+		"env": {
+			"DEFMT_LOG": "trace"
+		}
+	},
+	"tasks": [
+		{
+			"type": "cargo",
+			"command": "build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"options": {
+				"cwd": "${workspaceFolder}/fc-firmware"
+			},
+			"env": {
+				"DEFMT_LOG": "trace"
+			},
+			"label": "rust: cargo build"
+		}
+	]
+}
