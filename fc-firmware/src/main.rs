@@ -4,7 +4,13 @@
 
 mod cli;
 
+#[cfg(debug_assertions)]
 use panic_semihosting as _;
+
+#[cfg(not(debug_assertions))]
+use panic_abort as _;
+
+use defmt_rtt as _;
 
 use rtic::app;
 use rtic_sync::{channel::Receiver, make_channel};
@@ -63,6 +69,7 @@ mod app {
     fn init(mut cx: init::Context) -> (Shared, Local) {
         let dp = cx.device;
         let mut rcc = dp.RCC.freeze(Config::hse(16.MHz()).sysclk(48.MHz()));
+
         // let mut syscfg = dp.SYSCFG.constrain(&mut rcc);
 
         dp.TIM2.monotonic_us(&mut cx.core.NVIC, &mut rcc);
@@ -179,6 +186,7 @@ mod app {
 
     #[task(priority=1, shared=[cli], local = [led, bmi])]
     async fn blink(mut cx: blink::Context) {
+        defmt::info!("Starting initialization of BMI088.");
         cx.local.bmi.init().unwrap();
         loop {
             if let Ok(m) = cx.local.bmi.read_acc() {
