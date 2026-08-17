@@ -1,3 +1,3 @@
 [workspace]
 resolver = "3"
-members = ["bmi088","controller","fc-firmware"]
+members = ["bmi088", "bmp390","controller","fc-firmware"]

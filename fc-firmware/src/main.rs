@@ -133,7 +133,13 @@ mod app {
             i2c::Mode::standard(10.kHz()), 
             &mut rcc
         );
-        let bmi = Bmi088::new(i2c);
+        let mut bmi = Bmi088::new(i2c);
+
+        defmt::trace!("Starting initialization of BMI088.");
+        bmi.init(&mut delay).unwrap();
+
+        defmt::trace!("Initialized BMI, setting range.");
+        bmi.set_acc_range(bmi088::AccRange::Range6G).unwrap();
 
         /*
         let gpioc = dp.GPIOC.split(&mut rcc);
@@ -194,13 +200,10 @@ mod app {
 
     #[task(priority=1, local = [led, bmi])]
     async fn blink(cx: blink::Context) {
-        Mono::delay(5.millis().into()).await;
-        defmt::trace!("Starting initialization of BMI088.");
-        cx.local.bmi.init().unwrap();
-        defmt::trace!("Initialized BMI088, starting loop.");
         loop {
             if let Ok(m) = cx.local.bmi.read_acc() {
-                defmt::debug!("{} {} {}", m.x_raw(), m.y_raw(), m.z_raw());
+                let range = cx.local.bmi.acc_range();
+                defmt::debug!("{} {} {}", m.x_ms2(range), m.y_ms2(range), m.z_ms2(range));
             }
             cx.local.led.toggle();
             Mono::delay(500.millis().into()).await;
