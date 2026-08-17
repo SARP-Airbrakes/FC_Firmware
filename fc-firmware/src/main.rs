@@ -40,19 +40,18 @@ mod app {
     use rtic_sync::channel::Sender;
     use static_cell::StaticCell;
     use stm32f4xx_hal::{i2c, i2c::{I2c, I2c1}};
-    use ufmt::uwrite;
 
     use super::*;
 
     #[shared]
     struct Shared {
-        cli: cli::Cli,
         serial_device: UsbSerialDevice,
         delay: timer::DelayMs<pac::TIM1>,
     }
 
     #[local]
     struct Local {
+        cli: cli::Cli,
         cli_processor_sender: Sender<'static, u8, CLI_PROCESS_LEN>,
         led: PB2<Output<PushPull>>,
         bmi: Bmi088<I2c1>,
@@ -74,7 +73,7 @@ mod app {
 
         dp.TIM2.monotonic_us(&mut cx.core.NVIC, &mut rcc);
 
-        let mut delay = dp.TIM1.delay_ms(&mut rcc);
+        let delay = dp.TIM1.delay_ms(&mut rcc);
 
         let gpioa = dp.GPIOA.split(&mut rcc);
         let gpiob = dp.GPIOB.split(&mut rcc);
@@ -117,7 +116,7 @@ mod app {
             i2c::Mode::standard(100.kHz()), 
             &mut rcc
         );
-        let mut bmi = Bmi088::new(i2c);
+        let bmi = Bmi088::new(i2c);
 
         /*
         let gpioc = dp.GPIOC.split(&mut rcc);
@@ -138,11 +137,11 @@ mod app {
 
         (
             Shared {
-                cli,
                 serial_device,
                 delay,
             },
             Local {
+                cli,
                 led,
                 cli_processor_sender: s,
                 bmi
@@ -151,7 +150,7 @@ mod app {
     }
 
     #[idle(shared=[delay])]
-    fn idle(mut cx: idle::Context) -> ! {
+    fn idle(_cx: idle::Context) -> ! {
         loop {
         }
     }
@@ -175,31 +174,21 @@ mod app {
         });
     }
 
-    #[task(priority=1, shared=[cli])]
-    async fn cli_process(mut cx: cli_process::Context, mut r: Receiver<'static, u8, CLI_PROCESS_LEN>) {
+    #[task(priority=1, local=[cli])]
+    async fn cli_process(cx: cli_process::Context, mut r: Receiver<'static, u8, CLI_PROCESS_LEN>) {
         while let Ok(b) = r.recv().await {
-            cx.shared.cli.lock(|cli| {
-                crate::cli::Base::process_byte(cli, b);
-            });
+            crate::cli::Base::process_byte(cx.local.cli, b);
         }
     }
 
-    #[task(priority=1, shared=[cli], local = [led, bmi])]
-    async fn blink(mut cx: blink::Context) {
+    #[task(priority=1, local = [led, bmi])]
+    async fn blink(cx: blink::Context) {
         defmt::info!("Starting initialization of BMI088.");
         cx.local.bmi.init().unwrap();
+        defmt::trace!("Initialized BMI088, starting loop.");
         loop {
             if let Ok(m) = cx.local.bmi.read_acc() {
-                cx.shared.cli.lock(|cli| {
-                    cli.write(|w| {
-                        uwrite!(w, "{} {} {}", 
-                            m.x_raw(),
-                            m.y_raw(),
-                            m.z_raw()
-                        );
-                        Ok(())
-                    });
-                });
+                defmt::debug!("{} {} {}", m.x_raw(), m.y_raw(), m.z_raw());
             }
             cx.local.led.toggle();
             Mono::delay(500.millis().into()).await;
