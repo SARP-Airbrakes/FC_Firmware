@@ -149,12 +149,6 @@ mod app {
         )
     }
 
-    #[idle(shared=[delay])]
-    fn idle(_cx: idle::Context) -> ! {
-        loop {
-        }
-    }
-
     #[task(binds=OTG_FS, shared=[serial_device], local=[cli_processor_sender])]
     fn usb_fs(mut cx: usb_fs::Context) {
         cx.shared.serial_device.lock(|serial_device| {

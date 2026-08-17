@@ -1,6 +1,6 @@
 #![no_std]
 
-use embedded_hal::{delay::DelayNs, i2c::{I2c, SevenBitAddress}};
+use embedded_hal::i2c::{I2c, SevenBitAddress};
 
 
 pub mod regs;
@@ -61,7 +61,12 @@ where
     }
 
     pub fn init(&mut self) -> Result<(), Error<E>> {
-        if self.read_u8(Bmi088Device::Acc, regs::BMI088_ACC_CHIP_ID).map_err(Error::I2c)? != 0x1e {
+        let byte = self.read_u8(Bmi088Device::Acc, regs::BMI088_ACC_CHIP_ID).map_err(Error::I2c)?;
+        #[cfg(feature = "defmt")]
+        {
+            defmt::trace!("Received {} for ACC_CHIP_ID, expecting 0x1e", byte);
+        }
+        if byte != 0x1e {
             return Err(Error::Unidentified);
         }
 

@@ -1,4 +1,5 @@
 
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Bmi088Acceleration {
     x: i16,
     y: i16,
