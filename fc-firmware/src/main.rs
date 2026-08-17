@@ -98,7 +98,7 @@ async fn main(spawner: Spawner) {
         }
     };
 
-    spawner.spawn(console_execute().unwrap());
+    spawner.spawn(console_execute(spawner).unwrap());
 
     join(usb_fut, echo_fut).await;
 }
@@ -109,9 +109,9 @@ enum Base {
 }
 
 #[embassy_executor::task]
-async fn console_execute() {
+async fn console_execute(spawner: Spawner) {
     let dropped = AtomicUsize::new(0);
-    let writer = PipeWriter::new(&CONSOLE_WRITE_PIPE, &dropped);
+    let writer = PipeWriter::new(spawner, &CONSOLE_WRITE_PIPE, &dropped);
 
     let mut cli = CliBuilder::default()
         .writer(writer)
@@ -132,8 +132,9 @@ async fn console_execute() {
             &mut Base::processor(|cli, command| {
                 match command {
                     Base::Version => {
-                        uwriteln!(cli.writer(), "Airbrakes flight computer");
-                        uwriteln!(cli.writer(), "Version {}", env!("CARGO_PKG_VERSION"));
+                        uwriteln!(cli.writer(), "Airbrakes Flight Computer firmware");
+                        uwriteln!(cli.writer(), "(c) 2026 Society for Advanced Rocket Propulsion");
+                        uwriteln!(cli.writer(), "v{}", env!("CARGO_PKG_VERSION"));
                     },
                     _ => {},
                 };
@@ -144,17 +145,24 @@ async fn console_execute() {
     }
 }
 
+#[embassy_executor::task(pool_size = 4)]
+async fn write_dropped(pipe: &'static ConsolePipe, buf: [u8; 64], n: usize) {
+    pipe.write(&buf[..n]).await;
+}
+
 /// A blocking writer that wraps around a pipe synchronization primitive.
 /// Reports how many bytes have been lost.
 struct PipeWriter<'a> {
+    spawner: Spawner,
     pipe: &'static ConsolePipe,
     dropped: &'a AtomicUsize,
 }
 
 impl<'a> PipeWriter<'a> {
 
-    pub fn new(pipe: &'static ConsolePipe, dropped: &'a AtomicUsize) -> Self {
+    pub fn new(spawner: Spawner, pipe: &'static ConsolePipe, dropped: &'a AtomicUsize) -> Self {
         Self {
+            spawner,
             pipe,
             dropped
         }
@@ -170,6 +178,15 @@ impl<'a> embedded_io::Write for PipeWriter<'a> {
         match self.pipe.try_write(buf) {
             Ok(n) => Ok(n),
             Err(_) => {
+
+                if (buf.len() <= 64) {
+                    let mut b = [0u8; 64];
+                    b[..buf.len()].copy_from_slice(buf);
+                    if let Ok(token) = write_dropped(self.pipe, b, buf.len()) {
+                        self.spawner.spawn(token);
+                        return Ok(buf.len());
+                    }
+                }
                 self.dropped.fetch_add(buf.len(), Ordering::AcqRel);
                 Ok(buf.len()) // report ok nonetheless
             }
