@@ -38,7 +38,6 @@ pub async fn process_cli() {
                         uwriteln!(cli.writer(), "(c) 2026 Society for Advanced Rocket Propulsion");
                         uwriteln!(cli.writer(), "v{}", env!("CARGO_PKG_VERSION"));
                     },
-                    _ => {},
                 };
                 Ok(())
             })

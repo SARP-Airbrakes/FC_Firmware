@@ -2,6 +2,8 @@
 use core::cell::RefCell;
 
 use bmi088::Bmi088;
+use bmp390::Bmp390;
+
 use defmt::*;
 use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
 use embassy_executor::SendSpawner;
@@ -19,6 +21,8 @@ use static_cell::StaticCell;
 type I2c1Bus = Mutex<CriticalSectionRawMutex, RefCell<I2c<'static, Blocking, Master>>>;
 static I2C1_BUS: StaticCell<I2c1Bus> = StaticCell::new();
 
+/// Initializes the I2C1 peripheral and subsequently the sensors connected to it
+/// (BMI088, BMP390).
 #[embassy_executor::task]
 pub async fn initialize_i2c(
     spawner: SendSpawner,
@@ -49,8 +53,11 @@ pub async fn initialize_i2c(
     let bus = I2C1_BUS.init(Mutex::new(i2c));
 
     spawner.spawn(unwrap!(initialize_bmi(bus)));
+    spawner.spawn(unwrap!(initialize_bmp(bus)));
 }
 
+/// Initializes the BMI088 sensor, and then listens for new data from the
+/// device.
 #[embassy_executor::task]
 async fn initialize_bmi(bus: &'static I2c1Bus) {
     let device = I2cDevice::new(bus);
@@ -66,4 +73,13 @@ async fn initialize_bmi(bus: &'static I2c1Bus) {
             debug!("{} {} {}", m.x_ms2(range), m.y_ms2(range), m.z_ms2(range))
         }
     }
+}
+
+/// Initializes the BMP390 sensor.
+#[embassy_executor::task]
+async fn initialize_bmp(bus: &'static I2c1Bus) {
+    let device = I2cDevice::new(bus);
+    let mut bmp = Bmp390::new(device);
+    let coeff = unwrap!(bmp.read_coefficients());
+    debug!("Coefficients: {}", coeff);
 }
