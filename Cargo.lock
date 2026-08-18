@@ -6,10 +6,12 @@ version = 4
 name = "FC_Firmware"
 version = "0.1.0"
 dependencies = [
+ "bmi088",
  "cortex-m",
  "cortex-m-rt",
  "defmt 1.1.1",
  "defmt-rtt",
+ "embassy-embedded-hal",
  "embassy-executor",
  "embassy-futures",
  "embassy-stm32",

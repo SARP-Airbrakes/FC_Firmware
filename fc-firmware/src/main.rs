@@ -4,6 +4,7 @@
 #![feature(impl_trait_in_assoc_type)]
 #![feature(never_type)]
 
+mod sensor;
 mod usb;
 mod cli;
 
@@ -11,13 +12,14 @@ use defmt::*;
 use cortex_m_rt::entry;
 use embassy_executor::InterruptExecutor;
 use embassy_stm32::{Peri, interrupt};
-use embassy_stm32::peripherals::{PA11, PA12, USB_OTG_FS};
+use embassy_stm32::peripherals::*;
 use embassy_stm32::{Config, interrupt::InterruptExt, time::mhz};
 
 use panic_probe as _;
 use defmt_rtt as _;
 
 use crate::cli::process_cli;
+use crate::sensor::initialize_i2c;
 
 static EXECUTOR_HIGH: InterruptExecutor = InterruptExecutor::new();
 static EXECUTOR_LOW: InterruptExecutor = InterruptExecutor::new();
@@ -78,7 +80,7 @@ fn main() -> ! {
     let p = embassy_stm32::init(cfg);
 
     debug!("Starting flight firmware.");
-    
+
     interrupt::SPI2.set_priority(interrupt::Priority::P6);
     let spawner = EXECUTOR_LOW.start(interrupt::SPI2);
     spawner.spawn(unwrap!(process_cli()));
@@ -86,6 +88,7 @@ fn main() -> ! {
     interrupt::SPI3.set_priority(interrupt::Priority::P7);
     let spawner = EXECUTOR_HIGH.start(interrupt::SPI3);
     spawner.spawn(unwrap!(process_usb(p.USB_OTG_FS, p.PA12, p.PA11)));
+    spawner.spawn(unwrap!(initialize_i2c(spawner, p.I2C1, p.PB8, p.PB9)));
 
     loop {}
 }

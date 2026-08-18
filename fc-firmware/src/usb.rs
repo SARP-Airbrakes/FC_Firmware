@@ -6,7 +6,7 @@ use embassy_stm32::{Peri, bind_interrupts, peripherals::{self, USB_OTG_FS}, usb:
 use embassy_usb::{Builder, class::cdc_acm::{CdcAcmClass, Receiver, Sender, State}, driver::EndpointError};
 use static_cell::StaticCell;
 
-pub(crate) type UsbPipe = pipe::Pipe<CriticalSectionRawMutex, 64>;
+pub(crate) type UsbPipe = pipe::Pipe<CriticalSectionRawMutex, 128>;
 pub(crate) static USB_READ_PIPE: UsbPipe = UsbPipe::new();
 pub(crate) static USB_WRITE_PIPE: UsbPipe = UsbPipe::new();
 

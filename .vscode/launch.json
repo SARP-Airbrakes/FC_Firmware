@@ -15,7 +15,7 @@
                 "flashingEnabled": true,
                 "verifyBeforeFlashing": true,
                 "verifyAfterFlashing": true,
-                "haltAfterReset": false,
+                "haltAfterReset": true,
                 "formatOptions": {
                     "binaryFormat": "elf"
                 }
@@ -29,7 +29,7 @@
                 }
             ],
             "env": {
-                "DEFMT_LOG": "trace"
+                "DEFMT_LOG": "debug"
             }
         }
     ]

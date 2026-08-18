@@ -15,6 +15,7 @@ pub struct Bmi088<I> {
 }
 
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<E> {
     I2c(E),
     Unidentified
@@ -86,7 +87,8 @@ where
 
     pub fn read_acc(&mut self) -> Result<Acceleration, Error<E>> {
         let mut data = [0u8; 6];
-        self.read_bytes(Device::Acc, regs::BMI088_ACC_X_LSB, &mut data).map_err(Error::I2c)?;
+        self.read_bytes(Device::Acc, regs::BMI088_ACC_X_LSB, &mut data)
+            .map_err(Error::I2c)?;
         let x = i16::from_le_bytes([data[0], data[1]]);
         let y = i16::from_le_bytes([data[2], data[3]]);
         let z = i16::from_le_bytes([data[4], data[5]]);
@@ -94,7 +96,8 @@ where
     }
 
     pub fn init(&mut self, delay: &mut dyn DelayNs) -> Result<(), Error<E>> {
-        let byte = self.read_u8(Device::Acc, regs::BMI088_ACC_CHIP_ID).map_err(Error::I2c)?;
+        let byte = self.read_u8(Device::Acc, regs::BMI088_ACC_CHIP_ID)
+            .map_err(Error::I2c)?;
         #[cfg(feature = "defmt")]
         {
             defmt::trace!("Received {} for ACC_CHIP_ID, expecting 0x1e", byte);
