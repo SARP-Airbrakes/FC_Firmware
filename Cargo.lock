@@ -26,6 +26,7 @@ dependencies = [
  "panic-probe",
  "static_cell",
  "ufmt",
+ "w25qxxxjv",
 ]
 
 [[package]]

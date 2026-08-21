@@ -7,20 +7,36 @@ use defmt_rtt as _;
 #[cfg(test)]
 #[embedded_test::tests]
 mod tests {
-    use defmt::{unwrap, debug};
+    use defmt::{unwrap, info};
     use bmi088::Bmi088;
     use bmp390::{Bmp390, Coefficients};
+    use w25qxxxjv::{W25qxxxjv, Model};
     use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
     use embassy_time::Timer;
-    use embassy_stm32::{Config, gpio, mode::Blocking, time::{khz, mhz}, i2c::{self, I2c, Master}};
+    use embassy_stm32::{
+        Config, 
+        bind_interrupts, 
+        dma, 
+        peripherals, 
+        gpio, 
+        i2c::{self, I2c, Master}, 
+        mode::Blocking, 
+        time::{khz, mhz},
+        spi::Spi,
+    };
     use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
     use core::cell::RefCell;
     use static_cell::StaticCell;
 
     type I2cBus = Mutex<CriticalSectionRawMutex, RefCell<I2c<'static, Blocking, Master>>>;
+
+    bind_interrupts!(struct Irqs {
+        DMA2_STREAM2 => dma::InterruptHandler<peripherals::DMA2_CH2>;
+        DMA2_STREAM3 => dma::InterruptHandler<peripherals::DMA2_CH3>;
+    });
     
     struct State {
-        bus: &'static I2cBus,
+        w25: W25qxxxjv<'static, Spi<'static, embassy_stm32::mode::Async, embassy_stm32::spi::mode::Master>, gpio::Output<'static>, embassy_time::Delay>,
         bmi: Bmi088<I2cDevice<'static, CriticalSectionRawMutex, I2c<'static, Blocking, Master>>>,
         bmp: Bmp390<I2cDevice<'static, CriticalSectionRawMutex, I2c<'static, Blocking, Master>>>,
         bmp_calib: Coefficients
@@ -29,6 +45,7 @@ mod tests {
     #[init]
     async fn setup() -> State {
         static I2C_BUS: StaticCell<I2cBus> = StaticCell::new();
+        static DELAY_CELL: StaticCell<embassy_time::Delay> = StaticCell::new();
 
         let mut cfg = Config::default();
 
@@ -93,20 +110,58 @@ mod tests {
         unwrap!(bmp.set_pwr_ctrl(
             bmp390::PowerCtrl::PressureEnable | 
             bmp390::PowerCtrl::TemperatureEnable | 
-            bmp390::PowerCtrl::Mode(bmp390::PowerCtrlMode::Normal)
+            bmp390::PowerCtrl::Mode(bmp390::PowerCtrlMode::Forced) // just once per test
         ));
 
+        let config = {
+            let mut config = embassy_stm32::spi::Config::default();
+            config.frequency = mhz(1);
+            config
+        };
+        let spi = Spi::new(
+            p.SPI1,
+            p.PA5,
+            p.PA7,
+            p.PA6,
+            p.DMA2_CH3,
+            p.DMA2_CH2,
+            Irqs,
+            config
+        );
+
+        let delay = DELAY_CELL.init(embassy_time::Delay);
+
+        let mut w25 = W25qxxxjv::new(
+            spi,
+            gpio::Output::new(
+                p.PA9, 
+                gpio::Level::High, 
+                gpio::Speed::VeryHigh
+            ),
+            Model::W25q128jv,
+            delay
+        );
+        unwrap!(w25.init().await);
+
         State {
-            bus,
+            w25,
             bmi,
             bmp,
             bmp_calib: coeff
         }
     }
 
+    /// Tests reading the acceleration off of the BMI088 connected to the board.
     #[test]
     fn read_acceleration(mut state: State) {
         let m = state.bmi.read_acc().unwrap();
+
+        info!(
+            "Acceleration acquired: ({} m/s^2, {} m/s^2, {} m/s^2)", 
+            m.x_ms2(bmi088::AccRange::Range6G),
+            m.y_ms2(bmi088::AccRange::Range6G),
+            m.z_ms2(bmi088::AccRange::Range6G)
+        );
 
         // assuming the accelerometer is not moving, check we are within normal bounds
         assert!(m.z_ms2(bmi088::AccRange::Range6G) > 5.0);
@@ -120,6 +175,8 @@ mod tests {
     fn read_temperature(mut state: State) {
         let m = state.bmp.read_temperature().unwrap();
         let temp = m.compensate(&state.bmp_calib);
+
+        info!("Temperature acquired: {} C", temp);
         
         // assuming nominal conditions, check if we are in a vaguely room temperature room
         assert!(temp > 5.0);
@@ -131,6 +188,9 @@ mod tests {
         let (p, t) = state.bmp.read().unwrap();
         let temp = t.compensate(&state.bmp_calib);
         let press = p.compensate(&state.bmp_calib, temp);
+
+        info!("Temperature acquired: {} C", temp);
+        info!("Pressure acquired: {} Pa", press);
         
         // assuming that this test is in the troposphere
         assert!(press < 120_000.0); // 101325 is nominal for sea level
@@ -144,8 +204,98 @@ mod tests {
         let press = p.compensate(&state.bmp_calib, temp);
         let altitude = bmp390::Pressure::estimate_altitude_hypsometric(press, temp);
 
+        info!("Temperature acquired: {} C", temp);
+        info!("Pressure acquired: {} Pa", press);
+        info!("Altitude acquired: {} m", altitude);
+
         // assuming this test is on the ground
         assert!(altitude > -250.0);
         assert!(altitude < 11_000.0); // tropopause starts at 11km
+    }
+
+    #[test]
+    async fn read_mfr_dev_id(mut state: State) {
+        // this is checked in #init() but this is to double check
+        let (mfr, dev) = state.w25.read_manufacturer_device_id().await.unwrap();
+        assert_eq!(mfr, 0xef);
+        assert_eq!(dev, Model::W25q128jv.device_id());
+    }
+    
+    #[test]
+    async fn program_and_read_string(mut state: State) {
+        const TEST_STRING: &str = "Hello, world! This is a test string.";
+
+        state.w25.erase_sector(0x00).await.unwrap();
+        state.w25.page_program(0x00, TEST_STRING.as_bytes()).await.unwrap();
+
+        // give some time
+        Timer::after_millis(10).await;
+
+        let mut buf = [0u8; TEST_STRING.len()];      
+        state.w25.read_data(0x00, &mut buf).await.unwrap();
+
+        let found = str::from_utf8(&buf).unwrap();
+
+        info!("Got: {}", found);
+        info!("Requires: {}", TEST_STRING);
+        assert_eq!(found, TEST_STRING);
+    }
+
+    #[test]
+    async fn write_and_read_string_on_page_boundary(mut state: State) {
+        const TEST_STRING: &str = "Lorem ipsum dolor sit amet";
+        // writing at address on page boundary
+        const ADDRESS: u32 = 0xf0;
+
+        state.w25.erase_sector(ADDRESS).await.unwrap();
+        state.w25.write_data(ADDRESS, TEST_STRING.as_bytes()).await.unwrap();
+
+        // give some time
+        Timer::after_millis(10).await;
+
+        let mut buf = [0u8; TEST_STRING.len()];      
+        state.w25.read_data(ADDRESS, &mut buf).await.unwrap();
+
+        info!("Received: {}", buf);
+
+        let found = str::from_utf8(&buf).unwrap();
+
+        info!("Got: {}", found);
+        info!("Requires: {}", TEST_STRING);
+
+        assert_eq!(found, TEST_STRING);
+    }
+
+    #[test]
+    async fn write_and_read_string_across_multiple_page_boundaries(mut state: State) {
+        const TEST_STRING: &str = "
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+            tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
+            veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
+            commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
+            velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint
+            occaecat cupidatat non proident, sunt in culpa qui officia deserunt
+            mollit anim id est laborum. 
+        ";
+        // writing at address on page boundary
+        const ADDRESS: u32 = 0xf0;
+
+        state.w25.erase_sector(ADDRESS).await.unwrap();
+        state.w25.write_data(ADDRESS, TEST_STRING.as_bytes()).await.unwrap();
+
+        // give some time
+        Timer::after_millis(10).await;
+
+        let mut buf = [0u8; TEST_STRING.len()];      
+        state.w25.read_data(ADDRESS, &mut buf).await.unwrap();
+
+        info!("Received: {}", buf);
+
+        let found = str::from_utf8(&buf).unwrap();
+
+        info!("Got: {}", found);
+        info!("Requires: {}", TEST_STRING);
+
+        assert_eq!(found, TEST_STRING);
     }
 }

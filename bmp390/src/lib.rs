@@ -4,8 +4,6 @@ mod config;
 mod measurements;
 mod regs;
 
-use core::array::TryFromSliceError;
-
 use embedded_hal::i2c::{I2c, SevenBitAddress};
 
 pub use measurements::*;

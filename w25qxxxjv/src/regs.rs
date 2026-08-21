@@ -4,6 +4,7 @@ pub const W25QXXXJV_MANUFACTURER_ID: u8 = 0xef;
 pub const W25QXXXJV_PAGE_PROGRAM: u8 = 0x02;
 pub const W25QXXXJV_READ_DATA: u8 = 0x03;
 pub const W25QXXXJV_WRITE_ENABLE: u8 = 0x06;
+pub const W25QXXXJV_SECTOR_ERASE: u8 = 0x20;
 pub const W25QXXXJV_MANUFACTURER_DEVICE_ID: u8 = 0x90;
 
 pub enum Model {

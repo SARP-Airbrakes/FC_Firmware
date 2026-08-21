@@ -4,9 +4,10 @@
 #![feature(impl_trait_in_assoc_type)]
 #![feature(never_type)]
 
-mod sensor;
-mod usb;
 mod cli;
+mod sensor;
+mod memory;
+mod usb;
 
 use defmt::*;
 use cortex_m_rt::entry;

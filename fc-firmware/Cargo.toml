@@ -24,6 +24,7 @@ embedded-test = { version = "0.7.2", features = ["defmt", "embassy-010"] }
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 static_cell = "2.1.1"
 ufmt = "0.2.0"
+w25qxxxjv = { version = "0.1.0", path = "../w25qxxxjv", features = ["defmt"] }
 
 [profile.release]
 debug = 2

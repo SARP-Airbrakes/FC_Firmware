@@ -1,3 +1,5 @@
+#![no_std]
+
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::{delay::DelayNs, spi::SpiBus};
 
@@ -101,36 +103,58 @@ where
     }
 
     /// Writes data to the chip larger than one page via sequential page programs.
-    pub async fn write_data(&mut self, addr: Wusize, buf: &[u8]) -> Result<(), Error<SE, PE>> {
+    pub async fn write_data(&mut self, mut addr: Wusize, buf: &[u8]) -> Result<(), Error<SE, PE>> {
         if !self.slice_in_bounds(addr, buf.len()) {
             return Err(Error::OutOfBounds);
         }
-        let buf_len: u32 = buf.len() as u32; // proven smaller than u32
-        let mut write_index = 0u32;
-        let page_pos = addr & 0xff;
-        let remaining = 0xff - page_pos;
-        
-        write_index += u32::min(remaining, buf_len);
-        self.page_program(addr, &buf[..write_index as usize]).await?;
 
-        // after this, page_pos should always be 0
+        let mut buf_index = 0usize;
 
-        while write_index < buf.len() as u32 {
-            let old_write_index = write_index;
-            write_index += u32::min(0xff, buf_len - write_index);
-            self.page_program(addr, &buf[old_write_index as usize..write_index as usize]).await?;
+        while buf_index < buf.len() {
+            // amount remaining in page
+            let remaining = u32::min(0x100 - (addr & 0xff), (buf.len() - buf_index) as u32);
+
+            #[cfg(feature = "defmt")]
+            {
+                defmt::trace!("mem write: addr: {:x} remaining: {}", addr, remaining);
+            }
+
+            self.page_program(addr, &buf[buf_index..buf_index + remaining as usize]).await?;
+            addr += remaining;
+            buf_index += remaining as usize;
         }
-
+        
         Ok(())
     }
 
     pub async fn read_manufacturer_device_id(&mut self) -> Result<(u8, u8), Error<SE, PE>> {
         let mut out = [0u8; 2]; // manufacturer id, device id
+
+        self.wait_until_not_busy().await?;
+
         self.set_cs_low()?;
         self.write(&[regs::W25QXXXJV_MANUFACTURER_DEVICE_ID, 0x00, 0x00, 0x00]).await?;
         self.read(&mut out).await?;
         self.set_cs_high()?;
         Ok(out.into())
+    }
+
+    /// Erases a sector (a 4kb-block).
+    pub async fn erase_sector(&mut self, addr: Wusize) -> Result<(), Error<SE, PE>> {
+        // ensure the address is aligned to the sectors
+        let addr = addr & !0x1000;
+        let bytes = addr.to_be_bytes();
+
+        self.wait_until_not_busy().await?;
+        self.write_enable().await?;
+
+        self.set_cs_low()?;
+        self.write(&[regs::W25QXXXJV_SECTOR_ERASE, bytes[1], bytes[2], bytes[3]]).await?;
+        self.set_cs_high()?;
+
+        self.wait_until_not_busy().await?;
+
+        Ok(())
     }
 
     pub async fn wait_until_not_busy(&mut self) -> Result<(), Error<SE, PE>> {
