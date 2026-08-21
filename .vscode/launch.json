@@ -9,7 +9,7 @@
             "type": "probe-rs-debug",
             "request": "launch",
             "name": "probe-rs Test",
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/fc-firmware",
             "chip": "STM32F411CEUx",
             "flashingConfig": {
                 "flashingEnabled": true,
@@ -23,8 +23,8 @@
             "coreConfigs": [
                 {
                     "coreIndex": 0,
-                    "programBinary": "./target/thumbv7em-none-eabihf/debug/${workspaceFolderBasename}",
-                    "svdFile": "./.vscode/STM32F411.svd",
+                    "programBinary": "../target/thumbv7em-none-eabihf/debug/${workspaceFolderBasename}",
+                    "svdFile": "../.vscode/STM32F411.svd",
                     "rttEnabled": true
                 }
             ],
