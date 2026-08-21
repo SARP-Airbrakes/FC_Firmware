@@ -1,12 +1,12 @@
 [package]
-name = "bmp390"
+name = "w25qxxxjv"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 defmt = { version = "1.1.1", optional = true }
 embedded-hal = "1.0.0"
-libm = "0.2.16"
+embedded-hal-async = "1.0.0"
 
 [features]
 defmt = ["dep:defmt"]

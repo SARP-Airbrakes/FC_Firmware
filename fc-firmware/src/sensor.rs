@@ -2,7 +2,7 @@
 use core::cell::RefCell;
 
 use bmi088::Bmi088;
-use bmp390::Bmp390;
+use bmp390::{Bmp390, PowerCtrl, PowerCtrlMode};
 
 use defmt::*;
 use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
@@ -81,5 +81,22 @@ async fn initialize_bmp(bus: &'static I2c1Bus) {
     let device = I2cDevice::new(bus);
     let mut bmp = Bmp390::new(device);
     let coeff = unwrap!(bmp.read_coefficients());
+    unwrap!(bmp.set_pwr_ctrl(
+        PowerCtrl::PressureEnable | 
+        PowerCtrl::TemperatureEnable | 
+        PowerCtrl::Mode(PowerCtrlMode::Normal)
+    ));
     debug!("Coefficients: {}", coeff);
+
+    loop {
+        Timer::after_secs(1).await;
+        if let Ok((p, t)) = bmp.read() {
+            let temp = t.compensate(&coeff);
+            let press = p.compensate(&coeff, temp);
+            let altitude = bmp390::Pressure::estimate_altitude_hypsometric(press, temp);
+            debug!("Temperature measurement: {} C", temp);
+            debug!("Pressure measurement: {} Pa", press);
+            debug!("Altitude measurement: {} m", altitude);
+        }
+    }
 }
