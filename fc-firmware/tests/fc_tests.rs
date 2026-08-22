@@ -13,21 +13,15 @@ mod tests {
     use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
     use embassy_time::Timer;
     use embassy_stm32::{
-        Config, 
         bind_interrupts, 
         dma, 
         peripherals, 
         gpio, 
-        i2c::{self, I2c, Master}, 
-        mode::Blocking, 
-        time::{khz, mhz},
+        i2c::{I2c, Master}, 
+        mode::Blocking,
         spi::Spi,
     };
-    use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
-    use core::cell::RefCell;
-    use static_cell::StaticCell;
-
-    type I2cBus = Mutex<CriticalSectionRawMutex, RefCell<I2c<'static, Blocking, Master>>>;
+    use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 
     bind_interrupts!(struct Irqs {
         DMA2_STREAM2 => dma::InterruptHandler<peripherals::DMA2_CH2>;
@@ -43,10 +37,9 @@ mod tests {
 
     #[init]
     async fn setup() -> State {
+        let p = fc_firmware::setup_stm32();
 
-        let p = FC_Firmware::setup_stm32();
-
-        let bus = FC_Firmware::initialize_i2c_bus(
+        let bus = fc_firmware::initialize_i2c_bus(
             p.I2C1,
             p.PB8,
             p.PB9
@@ -66,7 +59,7 @@ mod tests {
             bmp390::PowerCtrl::Mode(bmp390::PowerCtrlMode::Forced) // just once per test
         ));
 
-        let w25 = FC_Firmware::initialize_w25q128jv(
+        let w25 = fc_firmware::initialize_w25q128jv(
             p.SPI1,
             p.PA5,
             p.PA7,

@@ -14,7 +14,7 @@ use cortex_m_rt::entry;
 use embassy_executor::InterruptExecutor;
 use embassy_stm32::{Peri, interrupt};
 use embassy_stm32::peripherals::*;
-use embassy_stm32::{Config, interrupt::InterruptExt, time::mhz};
+use embassy_stm32::interrupt::InterruptExt;
 
 use crate::cli::process_cli;
 use crate::sensor::initialize_i2c;
@@ -47,7 +47,7 @@ async fn process_usb(
 
 #[entry]
 fn main() -> ! {
-    let p = FC_Firmware::setup_stm32();
+    let p = fc_firmware::setup_stm32();
 
     debug!("Starting flight firmware.");
 

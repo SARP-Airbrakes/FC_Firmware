@@ -3,35 +3,6 @@
 version = 4
 
 [[package]]
-name = "FC_Firmware"
-version = "0.1.0"
-dependencies = [
- "bmi088",
- "bmp390",
- "cortex-m",
- "cortex-m-rt",
- "defmt 1.1.1",
- "defmt-rtt",
- "embassy-embedded-hal",
- "embassy-executor",
- "embassy-futures",
- "embassy-stm32",
- "embassy-sync",
- "embassy-time",
- "embassy-usb",
- "embedded-cli",
- "embedded-io 0.6.1",
- "embedded-io-async 0.7.0",
- "embedded-test",
- "panic-abort",
- "panic-probe",
- "semihosting",
- "static_cell",
- "ufmt",
- "w25qxxxjv",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -770,6 +741,35 @@ name = "encode_unicode"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
+
+[[package]]
+name = "fc-firmware"
+version = "0.1.0"
+dependencies = [
+ "bmi088",
+ "bmp390",
+ "cortex-m",
+ "cortex-m-rt",
+ "defmt 1.1.1",
+ "defmt-rtt",
+ "embassy-embedded-hal",
+ "embassy-executor",
+ "embassy-futures",
+ "embassy-stm32",
+ "embassy-sync",
+ "embassy-time",
+ "embassy-usb",
+ "embedded-cli",
+ "embedded-io 0.6.1",
+ "embedded-io-async 0.7.0",
+ "embedded-test",
+ "panic-abort",
+ "panic-probe",
+ "semihosting",
+ "static_cell",
+ "ufmt",
+ "w25qxxxjv",
+]
 
 [[package]]
 name = "find-msvc-tools"

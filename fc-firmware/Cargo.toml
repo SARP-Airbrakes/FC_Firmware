@@ -1,5 +1,5 @@
 [package]
-name = "FC_Firmware"
+name = "fc-firmware"
 version = "0.1.0"
 edition = "2024"
 
@@ -35,7 +35,7 @@ debug = 2
 harness = false
 
 [[bin]]
-name = "FC_Firmware"
+name = "fc-firmware"
 test = false
 
 [[test]]

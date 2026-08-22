@@ -1,4 +1,3 @@
-use defmt::*;
 
 use embassy_stm32::{Peri, bind_interrupts, dma, peripherals::*};
 
@@ -18,7 +17,7 @@ pub async fn initialize_memory(
     rx_dma: Peri<'static, DMA2_CH2>,
     flash_cs: Peri<'static, PA9>,
 ) {
-    let w25 = FC_Firmware::initialize_w25q128jv(
+    let _w25 = fc_firmware::initialize_w25q128jv(
         spi, 
         sck, 
         mosi, 
