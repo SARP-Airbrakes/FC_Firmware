@@ -1,6 +1,6 @@
 
-#![no_main]
 #![no_std]
+#![no_main]
 #![feature(impl_trait_in_assoc_type)]
 #![feature(never_type)]
 
@@ -15,9 +15,6 @@ use embassy_executor::InterruptExecutor;
 use embassy_stm32::{Peri, interrupt};
 use embassy_stm32::peripherals::*;
 use embassy_stm32::{Config, interrupt::InterruptExt, time::mhz};
-
-use panic_probe as _;
-use defmt_rtt as _;
 
 use crate::cli::process_cli;
 use crate::sensor::initialize_i2c;
@@ -50,35 +47,7 @@ async fn process_usb(
 
 #[entry]
 fn main() -> ! {
-    let mut cfg = Config::default();
-
-    // Configure clocks
-    {
-        use embassy_stm32::rcc::*;
-
-        // Closely matched with the solved configuration from CubeMX
-        cfg.rcc.hse = Some(Hse {
-            freq: mhz(16),
-            mode: HseMode::Oscillator,
-        });
-
-        cfg.rcc.pll_src = PllSource::HSE;
-        cfg.rcc.pll = Some(Pll {
-            prediv: PllPreDiv::DIV8,
-            mul: PllMul::MUL72,
-            divp: Some(PllPDiv::DIV2),
-            divq: Some(PllQDiv::DIV3), // for 48 MHz clocks
-            divr: None, // not using I2S
-        });
-        cfg.rcc.mux.clk48sel = mux::Clk48sel::PLL1_Q;
-
-        cfg.rcc.apb1_pre = APBPrescaler::DIV1; // PCLK1 = 16MHz
-        cfg.rcc.apb2_pre = APBPrescaler::DIV1; // PCLK2 = 16MHz
-        cfg.rcc.ahb_pre = AHBPrescaler::DIV1; // HCLK = 16MHz
-
-        cfg.rcc.sys = Sysclk::HSI;
-    }
-    let p = embassy_stm32::init(cfg);
+    let p = FC_Firmware::setup_stm32();
 
     debug!("Starting flight firmware.");
 

@@ -23,7 +23,9 @@ dependencies = [
  "embedded-io 0.6.1",
  "embedded-io-async 0.7.0",
  "embedded-test",
+ "panic-abort",
  "panic-probe",
+ "semihosting",
  "static_cell",
  "ufmt",
  "w25qxxxjv",
@@ -1021,6 +1023,12 @@ name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+
+[[package]]
+name = "panic-abort"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e20e6499bbbc412f280b04a42346b356c6fa0753d5fd22b7bd752ff34c778ee"
 
 [[package]]
 name = "panic-probe"

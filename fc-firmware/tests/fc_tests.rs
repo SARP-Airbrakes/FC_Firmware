@@ -1,8 +1,7 @@
 #![no_std]
 #![no_main]
-#![feature(impl_trait_in_assoc_type)]
 
-use defmt_rtt as _;
+#![feature(impl_trait_in_assoc_type)]
 
 #[cfg(test)]
 #[embedded_test::tests]
@@ -44,60 +43,14 @@ mod tests {
 
     #[init]
     async fn setup() -> State {
-        static I2C_BUS: StaticCell<I2cBus> = StaticCell::new();
-        static DELAY_CELL: StaticCell<embassy_time::Delay> = StaticCell::new();
 
-        let mut cfg = Config::default();
+        let p = FC_Firmware::setup_stm32();
 
-        // Configure clocks
-        {
-            use embassy_stm32::rcc::*;
-
-            // Closely matched with the solved configuration from CubeMX
-            cfg.rcc.hse = Some(Hse {
-                freq: mhz(16),
-                mode: HseMode::Oscillator,
-            });
-
-            cfg.rcc.pll_src = PllSource::HSE;
-            cfg.rcc.pll = Some(Pll {
-                prediv: PllPreDiv::DIV8,
-                mul: PllMul::MUL72,
-                divp: Some(PllPDiv::DIV2),
-                divq: Some(PllQDiv::DIV3), // for 48 MHz clocks
-                divr: None, // not using I2S
-            });
-            cfg.rcc.mux.clk48sel = mux::Clk48sel::PLL1_Q;
-
-            cfg.rcc.apb1_pre = APBPrescaler::DIV1; // PCLK1 = 16MHz
-            cfg.rcc.apb2_pre = APBPrescaler::DIV1; // PCLK2 = 16MHz
-            cfg.rcc.ahb_pre = AHBPrescaler::DIV1; // HCLK = 16MHz
-
-            cfg.rcc.sys = Sysclk::HSI;
-        }
-        let p = embassy_stm32::init(cfg);
-
-        let mut scl = p.PB8;
-        let sda = p.PB9;
-
-        {
-            let mut out = gpio::Output::new(scl.reborrow(), gpio::Level::Low, gpio::Speed::VeryHigh);
-            for _ in 0..10 {
-                out.toggle();
-                Timer::after_millis(20).await;
-            }
-        }
-        Timer::after_millis(50).await;
-
-        let config = {
-            let mut config = i2c::Config::default();
-            config.frequency = khz(100);
-            config
-        };
-        let i2c = p.I2C1;
-        let i2c = I2c::new_blocking(i2c, scl, sda, config);
-        let i2c = RefCell::new(i2c);
-        let bus = I2C_BUS.init(Mutex::new(i2c));
+        let bus = FC_Firmware::initialize_i2c_bus(
+            p.I2C1,
+            p.PB8,
+            p.PB9
+        ).await;
 
         let device = I2cDevice::new(bus);
         let mut bmi = Bmi088::new(device);
@@ -113,35 +66,16 @@ mod tests {
             bmp390::PowerCtrl::Mode(bmp390::PowerCtrlMode::Forced) // just once per test
         ));
 
-        let config = {
-            let mut config = embassy_stm32::spi::Config::default();
-            config.frequency = mhz(1);
-            config
-        };
-        let spi = Spi::new(
+        let w25 = FC_Firmware::initialize_w25q128jv(
             p.SPI1,
             p.PA5,
             p.PA7,
             p.PA6,
             p.DMA2_CH3,
             p.DMA2_CH2,
+            p.PA9,
             Irqs,
-            config
-        );
-
-        let delay = DELAY_CELL.init(embassy_time::Delay);
-
-        let mut w25 = W25qxxxjv::new(
-            spi,
-            gpio::Output::new(
-                p.PA9, 
-                gpio::Level::High, 
-                gpio::Speed::VeryHigh
-            ),
-            Model::W25q128jv,
-            delay
-        );
-        unwrap!(w25.init().await);
+        ).await;
 
         State {
             w25,

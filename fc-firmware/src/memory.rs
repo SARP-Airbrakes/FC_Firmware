@@ -1,9 +1,6 @@
 use defmt::*;
-use embassy_stm32::{Peri, bind_interrupts, dma, gpio, time::mhz, peripherals::*, spi::Spi};
-use w25qxxxjv::{Model, W25qxxxjv};
-use static_cell::StaticCell;
 
-static DELAY_CELL: StaticCell<embassy_time::Delay> = StaticCell::new();
+use embassy_stm32::{Peri, bind_interrupts, dma, peripherals::*};
 
 bind_interrupts!(struct Irqs {
     DMA2_STREAM2 => dma::InterruptHandler<DMA2_CH2>;
@@ -21,32 +18,14 @@ pub async fn initialize_memory(
     rx_dma: Peri<'static, DMA2_CH2>,
     flash_cs: Peri<'static, PA9>,
 ) {
-    let config = {
-        let mut config = embassy_stm32::spi::Config::default();
-        config.frequency = mhz(1);
-        config
-    };
-    let spi = Spi::new(
-        spi,
-        sck,
-        mosi,
-        miso,
-        tx_dma,
-        rx_dma,
-        Irqs,
-        config
-    );
-
-    let delay = DELAY_CELL.init(embassy_time::Delay);
-    let mut w25q128jv = W25qxxxjv::new(
-        spi,
-        gpio::Output::new(
-            flash_cs, 
-            gpio::Level::High, 
-            gpio::Speed::VeryHigh
-        ),
-        Model::W25q128jv,
-        delay
-    );
-    unwrap!(w25q128jv.init().await);
+    let w25 = FC_Firmware::initialize_w25q128jv(
+        spi, 
+        sck, 
+        mosi, 
+        miso, 
+        tx_dma, 
+        rx_dma, 
+        flash_cs,
+        Irqs
+    ).await;
 }

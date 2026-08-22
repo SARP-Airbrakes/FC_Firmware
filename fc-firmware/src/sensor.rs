@@ -30,27 +30,7 @@ pub async fn initialize_i2c(
     mut scl: Peri<'static, PB8>,
     sda: Peri<'static, PB9>,
 ) {
-
-    // Quickly buzz on SCL just to get rid of any unknown state from reboot
-    {
-        let mut out = gpio::Output::new(scl.reborrow(), gpio::Level::Low, gpio::Speed::VeryHigh);
-        for _ in 0..10 {
-            out.toggle();
-            Timer::after_millis(20).await;
-        }
-    }
-
-    // Give peripherals some time to adjust
-    Timer::after_millis(50).await;
-
-    let config = {
-        let mut config = i2c::Config::default();
-        config.frequency = khz(100);
-        config
-    };
-    let i2c = I2c::new_blocking(i2c, scl, sda, config);
-    let i2c = RefCell::new(i2c);
-    let bus = I2C1_BUS.init(Mutex::new(i2c));
+    let bus = FC_Firmware::initialize_i2c_bus(i2c, scl, sda).await;
 
     spawner.spawn(unwrap!(initialize_bmi(bus)));
     spawner.spawn(unwrap!(initialize_bmp(bus)));
