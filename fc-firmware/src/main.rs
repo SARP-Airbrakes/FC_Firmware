@@ -19,6 +19,7 @@ use embassy_stm32::interrupt::InterruptExt;
 use panic_probe as _;
 
 use crate::cli::process_cli;
+use crate::memory::initialize_memory;
 use crate::sensor::initialize_i2c;
 
 static EXECUTOR_HIGH: InterruptExecutor = InterruptExecutor::new();
@@ -56,6 +57,15 @@ fn main() -> ! {
     interrupt::SPI2.set_priority(interrupt::Priority::P6);
     let spawner = EXECUTOR_LOW.start(interrupt::SPI2);
     spawner.spawn(unwrap!(process_cli()));
+    spawner.spawn(unwrap!(initialize_memory(
+        p.SPI1,
+        p.PA5,
+        p.PA7,
+        p.PA6,
+        p.DMA2_CH3,
+        p.DMA2_CH2,
+        p.PA9
+    )));
 
     interrupt::SPI3.set_priority(interrupt::Priority::P7);
     let spawner = EXECUTOR_HIGH.start(interrupt::SPI3);

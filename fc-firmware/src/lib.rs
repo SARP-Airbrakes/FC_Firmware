@@ -142,5 +142,5 @@ pub async fn initialize_i2c_bus(
 #[cfg(test)]
 #[embedded_test::tests]
 mod tests {
-
+    // This has to be here to avoid linker issues.
 }

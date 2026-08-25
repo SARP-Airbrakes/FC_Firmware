@@ -15,7 +15,9 @@ struct LogHeader {
     /// The position of the next write (address on the W25Q128JV).
     write_cursor: Wusize,
     /// Time that the header was last updated.
-    last_write: FlightTime
+    last_write: FlightTime,
+    /// Total number of packets written.
+    packet_count: usize,
 }
 
 /// A time during flight, measured in milliseconds since boot.
@@ -45,7 +47,8 @@ pub struct FlightLog<'a, S, CS, D> {
 pub enum Error<E> {
     W25(E),
     Serde(postcard::Error),
-    Cobs
+    Cobs,
+    MagicMismatch
 }
 
 impl<'a, S, CS, D, SE, PE> FlightLog<'a, S, CS, D>
@@ -62,6 +65,7 @@ where
                 magic: LOG_MAGIC_CONSTANT.as_bytes().try_into().unwrap_or_default(),
                 write_cursor: 0x1000,
                 last_write: FlightTime::now(),
+                packet_count: 0usize
             }
         }
     }
@@ -73,13 +77,19 @@ where
     pub async fn read_header(&mut self) -> Result<(), Error<w25qxxxjv::Error<SE, PE>>> {
         let mut buf = [0u8; 64];
         self.w25.read_data(0x00, &mut buf).await.map_err(Error::W25)?;
-        self.header = postcard::from_bytes::<LogHeader>(&buf).map_err(Error::Serde)?;
+        let header = postcard::from_bytes::<LogHeader>(&buf).map_err(Error::Serde)?;
+        if header.magic != LOG_MAGIC_CONSTANT {
+            return Err(Error::MagicMismatch);
+        }
+        self.header = header;
         Ok(())
     }
 
     pub async fn update_header(&mut self) -> Result<(), Error<w25qxxxjv::Error<SE, PE>>> {
         self.w25.erase_sector(0x00).await.map_err(Error::W25)?;
         let mut buf = [0u8; 64];
+
+        self.header.last_write = FlightTime::now();
         let slice = postcard::to_slice(&self.header, &mut buf).map_err(Error::Serde)?;
         self.w25.write_data(0x00, slice).await.map_err(Error::W25)?;
         Ok(())
@@ -125,7 +135,9 @@ where
         let slice = postcard::to_slice_cobs(&packet, &mut buf).map_err(Error::Serde)?;
         defmt::debug!("Writing ({:x}): {}", self.header.write_cursor, slice);
         self.w25.write_data(self.header.write_cursor, slice).await.map_err(Error::W25)?;
+
         self.header.write_cursor += slice.len() as Wusize;
+        self.header.packet_count += 1;
         self.update_header().await
     }
 

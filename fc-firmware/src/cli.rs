@@ -7,6 +7,7 @@ use crate::usb::{UsbPipe, USB_READ_PIPE, USB_WRITE_PIPE};
 
 #[derive(embedded_cli::Command)]
 enum Base {
+    /// Print version information for the hardware.
     Version,
 }
 
