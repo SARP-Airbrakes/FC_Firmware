@@ -56,11 +56,11 @@ where
         Ok(())
     }
 
-    pub fn set_cs_high(&mut self) -> Result<(), Error<SE, PE>> {
+    fn set_cs_high(&mut self) -> Result<(), Error<SE, PE>> {
         self.cs.set_high().map_err(Error::Pin)
     }
 
-    pub fn set_cs_low(&mut self) -> Result<(), Error<SE, PE>> {
+    fn set_cs_low(&mut self) -> Result<(), Error<SE, PE>> {
         self.cs.set_low().map_err(Error::Pin)
     }
 
@@ -142,7 +142,7 @@ where
     /// Erases a sector (a 4kb-block).
     pub async fn erase_sector(&mut self, addr: Wusize) -> Result<(), Error<SE, PE>> {
         // ensure the address is aligned to the sectors
-        let addr = addr & !0x1000;
+        let addr = addr & !0x0fff;
         let bytes = addr.to_be_bytes();
 
         self.wait_until_not_busy().await?;
@@ -154,6 +154,20 @@ where
 
         self.wait_until_not_busy().await?;
 
+        Ok(())
+    }
+
+    /// Erases the entire chip. Takes up to a minute.
+    pub async fn erase_chip(&mut self) -> Result<(), Error<SE, PE>> {
+        self.wait_until_not_busy().await?;
+        self.write_enable().await?;
+        
+        self.set_cs_low()?;
+        self.write(&[]).await?;
+        self.set_cs_high()?;
+
+        self.wait_until_not_busy().await?;
+    
         Ok(())
     }
 

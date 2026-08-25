@@ -16,6 +16,8 @@ use embassy_stm32::{Peri, interrupt};
 use embassy_stm32::peripherals::*;
 use embassy_stm32::interrupt::InterruptExt;
 
+use panic_probe as _;
+
 use crate::cli::process_cli;
 use crate::sensor::initialize_i2c;
 

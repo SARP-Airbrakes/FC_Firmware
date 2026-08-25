@@ -225,4 +225,141 @@ mod tests {
 
         assert_eq!(found, TEST_STRING);
     }
+
+    /// Tests writing just one packet to the flight log.
+    #[test]
+    async fn flight_log_write_and_read(mut state: State) {
+        use fc_firmware::log::{Packet, FlightLog, FlightTime};
+
+        // Erase the first two sectors for purposes of testing.
+        unwrap!(state.w25.erase_sector(0x0000).await);
+        unwrap!(state.w25.erase_sector(0x1000).await);
+
+        let mut log = FlightLog::new(state.w25);
+        unwrap!(log.update_header().await);
+
+        let packet = Packet::TemperaturePressure {
+            time: FlightTime::now(), 
+            temperature: 15.0,
+            pressure: 101325.0
+        };
+        unwrap!(log.push_packet(packet.clone()).await);
+
+        Timer::after_millis(10).await;
+
+        let read_packet = unwrap!(log.read_next_packet().await);
+        assert_eq!(read_packet, packet);
+    }
+
+    /// Tests writing multiple packets to the flight log and then reading them in sequence.
+    #[test]
+    async fn flight_log_write_and_read_multiple(mut state: State) {
+        use fc_firmware::log::{Packet, FlightLog, FlightTime};
+
+        // Erase the first two sectors for purposes of testing.
+        unwrap!(state.w25.erase_sector(0x0000).await);
+        unwrap!(state.w25.erase_sector(0x1000).await);
+
+        let mut log = FlightLog::new(state.w25);
+        unwrap!(log.update_header().await);
+
+        let packet1 = Packet::TemperaturePressure {
+            time: FlightTime::now(), 
+            temperature: 15.0,
+            pressure: 101325.0
+        };
+        let packet2 = Packet::TemperaturePressure {
+            time: FlightTime::now(), 
+            temperature: 25.0,
+            pressure: 99000.0
+        };
+        unwrap!(log.push_packet(packet1.clone()).await);
+        unwrap!(log.push_packet(packet2.clone()).await);
+
+        Timer::after_millis(10).await;
+
+        let read_packet = unwrap!(log.read_next_packet().await);
+        assert_eq!(read_packet, packet1);
+
+        let read_packet = unwrap!(log.read_next_packet().await);
+        assert_eq!(read_packet, packet2);
+
+        let fail = log.read_next_packet().await;
+        assert!(fail.is_err());
+    }
+
+    #[test]
+    async fn flight_log_reboot_and_read(mut state: State) {
+        use fc_firmware::log::{Packet, FlightLog, FlightTime};
+
+        // Erase the first two sectors for purposes of testing.
+        unwrap!(state.w25.erase_sector(0x0000).await);
+        unwrap!(state.w25.erase_sector(0x1000).await);
+
+        let mut log = FlightLog::new(state.w25);
+        unwrap!(log.update_header().await);
+
+        let packet1 = Packet::TemperaturePressure {
+            time: FlightTime::now(), 
+            temperature: 15.0,
+            pressure: 101325.0
+        };
+        unwrap!(log.push_packet(packet1.clone()).await);
+
+        Timer::after_millis(10).await;
+
+        // Refresh the FlightLog state entirely by destroying it and remaking
+        // it. This is roughly equivalent to rebooting.
+        let mut log = FlightLog::new(log.destroy());
+        unwrap!(log.read_header().await);
+
+        let read_packet = unwrap!(log.read_next_packet().await);
+        assert_eq!(read_packet, packet1);
+    }
+
+    #[test]
+    async fn flight_log_reboot_and_write_and_read(mut state: State) {
+        use fc_firmware::log::{Packet, FlightLog, FlightTime};
+
+        // Erase the first two sectors for purposes of testing.
+        unwrap!(state.w25.erase_sector(0x0000).await);
+        unwrap!(state.w25.erase_sector(0x1000).await);
+
+        let mut log = FlightLog::new(state.w25);
+        unwrap!(log.update_header().await);
+
+        let packet1 = Packet::TemperaturePressure {
+            time: FlightTime::now(), 
+            temperature: 15.0,
+            pressure: 101325.0
+        };
+        unwrap!(log.push_packet(packet1.clone()).await);
+
+        // Make sure that we wrote one packet correctly.
+        let read_packet = unwrap!(log.read_next_packet().await);
+        assert_eq!(read_packet, packet1);
+
+        Timer::after_millis(10).await;
+
+        // Refresh the FlightLog state entirely by destroying it and remaking
+        // it. This is roughly equivalent to rebooting.
+        let mut log = FlightLog::new(log.destroy());
+        unwrap!(log.read_header().await);
+
+        let packet2 = Packet::TemperaturePressure {
+            time: FlightTime::now(), 
+            temperature: 25.0,
+            pressure: 99000.0
+        };
+        unwrap!(log.push_packet(packet2.clone()).await);
+
+        let read_packet = unwrap!(log.read_next_packet().await);
+        assert_eq!(read_packet, packet1);
+
+        let read_packet = unwrap!(log.read_next_packet().await);
+        assert_eq!(read_packet, packet2);
+
+        let fail = log.read_next_packet().await;
+        assert!(fail.is_err());
+    }
 }

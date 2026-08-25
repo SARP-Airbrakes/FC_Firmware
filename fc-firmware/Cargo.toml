@@ -18,12 +18,16 @@ embassy-sync = { version = "0.8.0", features = ["defmt"] }
 embassy-time = { version = "0.5.1", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-32_768"] }
 embassy-usb = { version = "0.6.0", features = ["defmt"] }
 embedded-cli = "0.2.1"
+embedded-hal = "1.0.0"
+embedded-hal-async = "1.0.0"
 embedded-io = "0.6.1"
 embedded-io-async = "0.7.0"
-embedded-test = { version = "0.7.2", features = ["semihosting", "defmt", "embassy-010"], default-features = false }
+embedded-test = { version = "0.7.2", features = ["defmt", "embassy-010"] }
 panic-abort = "0.3.2"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
+postcard = { version = "1.1.3", default-features = false, features = ["defmt", "embedded-io-06", "use-defmt"] }
 semihosting = "0.1.25"
+serde = { version = "1.0.229", default-features = false, features = ["derive"] }
 static_cell = "2.1.1"
 ufmt = "0.2.0"
 w25qxxxjv = { version = "0.1.0", path = "../w25qxxxjv", features = ["defmt"] }

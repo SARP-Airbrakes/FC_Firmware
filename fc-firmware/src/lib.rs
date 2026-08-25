@@ -4,6 +4,8 @@
 //! This library comprises all setup boilerplate for the airbrakes flight
 //! computer hardware.
 
+pub mod log;
+
 use defmt::unwrap;
 use embassy_stm32::{
     Config, 
@@ -24,12 +26,6 @@ use core::cell::RefCell;
 use static_cell::StaticCell;
 
 use defmt_rtt as _;
-
-#[cfg(not(test))]
-use panic_probe as _;
-
-#[cfg(test)]
-use panic_abort as _;
 
 pub type I2cBus = Mutex<CriticalSectionRawMutex, RefCell<I2c<'static, mode::Blocking, i2c::mode::Master>>>;
 
@@ -126,12 +122,12 @@ pub async fn initialize_i2c_bus(
     // Wiggle the SCL to try and clear any erroneous peripheral states
     {
         let mut out = gpio::Output::new(scl.reborrow(), gpio::Level::Low, gpio::Speed::VeryHigh);
-        for _ in 0..10 {
+        for _ in 0..5 {
             out.toggle();
-            Timer::after_millis(20).await;
+            Timer::after_millis(10).await;
         }
     }
-    Timer::after_millis(50).await;
+    Timer::after_millis(20).await;
 
     let config = {
         let mut config = i2c::Config::default();
