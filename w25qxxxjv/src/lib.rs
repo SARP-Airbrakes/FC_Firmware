@@ -163,7 +163,7 @@ where
         self.write_enable().await?;
         
         self.set_cs_low()?;
-        self.write(&[]).await?;
+        self.write(&[regs::W25QXXXJV_CHIP_ERASE]).await?;
         self.set_cs_high()?;
 
         self.wait_until_not_busy().await?;

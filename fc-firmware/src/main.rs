@@ -11,7 +11,7 @@ mod usb;
 
 use defmt::*;
 use cortex_m_rt::entry;
-use embassy_executor::InterruptExecutor;
+use embassy_executor::{Executor, InterruptExecutor};
 use embassy_stm32::{Peri, interrupt};
 use embassy_stm32::peripherals::*;
 use embassy_stm32::interrupt::InterruptExt;
@@ -56,7 +56,7 @@ fn main() -> ! {
 
     interrupt::SPI2.set_priority(interrupt::Priority::P6);
     let spawner = EXECUTOR_LOW.start(interrupt::SPI2);
-    spawner.spawn(unwrap!(process_cli()));
+    spawner.spawn(unwrap!(process_cli(spawner)));
     spawner.spawn(unwrap!(initialize_memory(
         p.SPI1,
         p.PA5,
@@ -70,7 +70,8 @@ fn main() -> ! {
     interrupt::SPI3.set_priority(interrupt::Priority::P7);
     let spawner = EXECUTOR_HIGH.start(interrupt::SPI3);
     spawner.spawn(unwrap!(process_usb(p.USB_OTG_FS, p.PA12, p.PA11)));
-    spawner.spawn(unwrap!(initialize_i2c(spawner, p.I2C1, p.PB8, p.PB9)));
+    spawner.spawn(unwrap!(initialize_i2c(spawner, p.I2C1, p.PB8, p.PB9, p.DMA1_CH6, p.DMA1_CH0)));
+
 
     loop {}
 }

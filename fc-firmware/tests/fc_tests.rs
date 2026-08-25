@@ -10,28 +10,32 @@ mod tests {
     use bmi088::Bmi088;
     use bmp390::{Bmp390, Coefficients};
     use w25qxxxjv::{W25qxxxjv, Model};
-    use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
+    use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
     use embassy_time::Timer;
     use embassy_stm32::{
         bind_interrupts, 
         dma, 
         peripherals, 
         gpio, 
-        i2c::{I2c, Master}, 
-        mode::Blocking,
+        i2c::{self, I2c, Master}, 
+        mode::Async,
         spi::Spi,
     };
     use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 
     bind_interrupts!(struct Irqs {
+        I2C1_EV => i2c::EventInterruptHandler<peripherals::I2C1>;
+        I2C1_ER => i2c::ErrorInterruptHandler<peripherals::I2C1>;
+        DMA1_STREAM0 => dma::InterruptHandler<peripherals::DMA1_CH0>;
+        DMA1_STREAM6 => dma::InterruptHandler<peripherals::DMA1_CH6>;
         DMA2_STREAM2 => dma::InterruptHandler<peripherals::DMA2_CH2>;
         DMA2_STREAM3 => dma::InterruptHandler<peripherals::DMA2_CH3>;
     });
     
     struct State {
-        w25: W25qxxxjv<'static, Spi<'static, embassy_stm32::mode::Async, embassy_stm32::spi::mode::Master>, gpio::Output<'static>, embassy_time::Delay>,
-        bmi: Bmi088<I2cDevice<'static, CriticalSectionRawMutex, I2c<'static, Blocking, Master>>>,
-        bmp: Bmp390<I2cDevice<'static, CriticalSectionRawMutex, I2c<'static, Blocking, Master>>>,
+        w25: W25qxxxjv<'static, Spi<'static, Async, embassy_stm32::spi::mode::Master>, gpio::Output<'static>, embassy_time::Delay>,
+        bmi: Bmi088<I2cDevice<'static, CriticalSectionRawMutex, I2c<'static, Async, Master>>>,
+        bmp: Bmp390<I2cDevice<'static, CriticalSectionRawMutex, I2c<'static, Async, Master>>>,
         bmp_calib: Coefficients
     }
 
@@ -42,22 +46,25 @@ mod tests {
         let bus = fc_firmware::initialize_i2c_bus(
             p.I2C1,
             p.PB8,
-            p.PB9
+            p.PB9,
+            p.DMA1_CH6,
+            p.DMA1_CH0,
+            Irqs
         ).await;
 
         let device = I2cDevice::new(bus);
         let mut bmi = Bmi088::new(device);
-        unwrap!(bmi.init(&mut embassy_time::Delay {}));
-        unwrap!(bmi.set_acc_range(bmi088::AccRange::Range6G));
+        unwrap!(bmi.init(&mut embassy_time::Delay {}).await);
+        unwrap!(bmi.set_acc_range(bmi088::AccRange::Range6G).await);
 
         let device = I2cDevice::new(bus);
         let mut bmp = Bmp390::new(device);
-        let coeff = unwrap!(bmp.read_coefficients());
+        let coeff = unwrap!(bmp.read_coefficients().await);
         unwrap!(bmp.set_pwr_ctrl(
             bmp390::PowerCtrl::PressureEnable | 
             bmp390::PowerCtrl::TemperatureEnable | 
             bmp390::PowerCtrl::Mode(bmp390::PowerCtrlMode::Forced) // just once per test
-        ));
+        ).await);
 
         let w25 = fc_firmware::initialize_w25q128jv(
             p.SPI1,
@@ -80,8 +87,8 @@ mod tests {
 
     /// Tests reading the acceleration off of the BMI088 connected to the board.
     #[test]
-    fn read_acceleration(mut state: State) {
-        let m = state.bmi.read_acc().unwrap();
+    async fn read_acceleration(mut state: State) {
+        let m = state.bmi.read_acc().await.unwrap();
 
         info!(
             "Acceleration acquired: ({} m/s^2, {} m/s^2, {} m/s^2)", 
@@ -99,8 +106,8 @@ mod tests {
     }
 
     #[test]
-    fn read_temperature(mut state: State) {
-        let m = state.bmp.read_temperature().unwrap();
+    async fn read_temperature(mut state: State) {
+        let m = state.bmp.read_temperature().await.unwrap();
         let temp = m.compensate(&state.bmp_calib);
 
         info!("Temperature acquired: {} C", temp);
@@ -111,8 +118,8 @@ mod tests {
     }
 
     #[test]
-    fn read_pressure(mut state: State) {
-        let (p, t) = state.bmp.read().unwrap();
+    async fn read_pressure(mut state: State) {
+        let (p, t) = state.bmp.read().await.unwrap();
         let temp = t.compensate(&state.bmp_calib);
         let press = p.compensate(&state.bmp_calib, temp);
 
@@ -125,8 +132,8 @@ mod tests {
     }
 
     #[test]
-    fn read_altitude_bmp390(mut state: State) {
-        let (p, t) = state.bmp.read().unwrap();
+    async fn read_altitude_bmp390(mut state: State) {
+        let (p, t) = state.bmp.read().await.unwrap();
         let temp = t.compensate(&state.bmp_calib);
         let press = p.compensate(&state.bmp_calib, temp);
         let altitude = bmp390::Pressure::estimate_altitude_hypsometric(press, temp);

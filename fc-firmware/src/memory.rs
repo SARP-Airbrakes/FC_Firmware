@@ -41,7 +41,7 @@ pub async fn initialize_memory(
         flash_cs,
         Irqs
     ).await;
-    let log = FlightLog::new(w25);
+    let mut log = FlightLog::new(w25);
     if let Err(_) = log.read_header().await {
         defmt::debug!("Failed to read log header.");
     }
@@ -51,8 +51,10 @@ pub async fn initialize_memory(
 
     loop {
         let packet = LOG_WRITE_CHANNEL.receive().await;
-        FLIGHT_LOG.lock().await.inspect(|mut log| {
-            log.push_packet(packet);
-        });
+        if let Some(f) = FLIGHT_LOG.lock().await.as_mut().map(|l| l.push_packet(packet)) {
+            if let Err(e) = f.await {
+                defmt::warn!("Received unexpected logging error, continuing: {}", e);
+            }
+        }
     }
 }

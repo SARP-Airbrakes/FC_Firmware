@@ -5,7 +5,7 @@ use postcard::accumulator::{CobsAccumulator, FeedResult};
 use serde::{Deserialize, Serialize};
 use w25qxxxjv::{W25qxxxjv, Wusize};
 
-const LOG_MAGIC_CONSTANT: &'static str = concat!("Flight Log (v", env!("CARGO_PKG_VERSION"), ")");
+const LOG_MAGIC_CONSTANT: &'static str = concat!("FLIGHTLOG V1");
 
 /// A header placed at the very start of memory.
 #[derive(Serialize, Deserialize)]
@@ -74,11 +74,33 @@ where
         self.w25
     }
 
+    pub async fn erase_chip(&mut self) -> Result<(), Error<w25qxxxjv::Error<SE, PE>>> {
+        self.w25.erase_chip().await.map_err(Error::W25)
+    }
+
+    pub async fn erase_sector(&mut self, sector: Wusize) -> Result<(), Error<w25qxxxjv::Error<SE, PE>>> {
+        self.w25.erase_sector(sector).await.map_err(Error::W25)
+    }
+
+    pub fn reset(&mut self) {
+        self.header = LogHeader {
+            magic: LOG_MAGIC_CONSTANT.as_bytes().try_into().unwrap_or_default(),
+            write_cursor: 0x1000,
+            last_write: FlightTime::now(),
+            packet_count: 0usize
+        };
+        self.read_cursor = 0x1000;
+    }
+
+    pub fn with_w25<T>(&mut self, f: impl FnOnce(&mut W25qxxxjv<'a, S, CS, D>) -> T) -> T {
+        f(&mut self.w25)
+    }
+
     pub async fn read_header(&mut self) -> Result<(), Error<w25qxxxjv::Error<SE, PE>>> {
         let mut buf = [0u8; 64];
         self.w25.read_data(0x00, &mut buf).await.map_err(Error::W25)?;
         let header = postcard::from_bytes::<LogHeader>(&buf).map_err(Error::Serde)?;
-        if header.magic != LOG_MAGIC_CONSTANT {
+        if header.magic != LOG_MAGIC_CONSTANT.as_bytes() {
             return Err(Error::MagicMismatch);
         }
         self.header = header;

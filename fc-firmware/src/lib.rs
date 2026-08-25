@@ -8,26 +8,17 @@ pub mod log;
 
 use defmt::unwrap;
 use embassy_stm32::{
-    Config, 
-    Peri, 
-    Peripherals, 
-    gpio, 
-    mode,
-    time::{khz, mhz}, 
-    peripherals::*, 
-    spi::{self, Spi},
-    i2c::{self, I2c}
+    Config, Peri, Peripherals, dma, gpio, i2c::{self, I2c}, interrupt::typelevel, mode, peripherals::*, spi::{self, Spi}, time::{khz, mhz}
 };
 use embassy_time::Timer;
-use embassy_sync::blocking_mutex::Mutex;
+use embassy_sync::mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use w25qxxxjv::{Model, W25qxxxjv};
-use core::cell::RefCell;
 use static_cell::StaticCell;
 
 use defmt_rtt as _;
 
-pub type I2cBus = Mutex<CriticalSectionRawMutex, RefCell<I2c<'static, mode::Blocking, i2c::mode::Master>>>;
+pub type I2cBus = Mutex<CriticalSectionRawMutex, I2c<'static, mode::Async, i2c::mode::Master>>;
 
 /// Initializes the [`embassy_stm32`] HAL with the flight computer clock
 /// configuration.
@@ -75,8 +66,8 @@ pub async fn initialize_w25q128jv<D>(
     interrupts: D
 ) -> W25qxxxjv<'static, Spi<'static, mode::Async, spi::mode::Master>, gpio::Output<'static>, embassy_time::Delay>
 where
-    D: embassy_stm32::interrupt::typelevel::Binding<embassy_stm32::interrupt::typelevel::DMA2_STREAM2, embassy_stm32::dma::InterruptHandler<embassy_stm32::peripherals::DMA2_CH2>> +
-        embassy_stm32::interrupt::typelevel::Binding<embassy_stm32::interrupt::typelevel::DMA2_STREAM3, embassy_stm32::dma::InterruptHandler<embassy_stm32::peripherals::DMA2_CH3>> +
+    D: typelevel::Binding<typelevel::DMA2_STREAM2, dma::InterruptHandler<DMA2_CH2>> +
+        typelevel::Binding<typelevel::DMA2_STREAM3, dma::InterruptHandler<DMA2_CH3>> +
         'static
 {
     static DELAY_CELL: StaticCell<embassy_time::Delay> = StaticCell::new();
@@ -112,11 +103,21 @@ where
     w25q128jv
 }
 
-pub async fn initialize_i2c_bus(
+pub async fn initialize_i2c_bus<D>(
     i2c: Peri<'static, I2C1>,
     mut scl: Peri<'static, PB8>,
-    sda: Peri<'static, PB9>
-) -> &'static mut I2cBus {
+    sda: Peri<'static, PB9>,
+    tx_dma: Peri<'static, DMA1_CH6>,
+    rx_dma: Peri<'static, DMA1_CH0>,
+    interrupts: D,
+) -> &'static mut I2cBus 
+where
+    D: typelevel::Binding<typelevel::I2C1_EV, i2c::EventInterruptHandler<I2C1>> +
+        typelevel::Binding<typelevel::I2C1_ER, i2c::ErrorInterruptHandler<I2C1>> +
+        typelevel::Binding<typelevel::DMA1_STREAM0, dma::InterruptHandler<DMA1_CH0>> +
+        typelevel::Binding<typelevel::DMA1_STREAM6, dma::InterruptHandler<DMA1_CH6>> +
+        'static,
+{
     static I2C_BUS: StaticCell<I2cBus> = StaticCell::new();
 
     // Wiggle the SCL to try and clear any erroneous peripheral states
@@ -134,8 +135,7 @@ pub async fn initialize_i2c_bus(
         config.frequency = khz(100);
         config
     };
-    let i2c = I2c::new_blocking(i2c, scl, sda, config);
-    let i2c = RefCell::new(i2c);
+    let i2c = I2c::new(i2c, scl, sda, tx_dma, rx_dma, interrupts, config);
     I2C_BUS.init(I2cBus::new(i2c))
 }
 

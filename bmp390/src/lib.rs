@@ -4,7 +4,7 @@ mod config;
 mod measurements;
 mod regs;
 
-use embedded_hal::i2c::{I2c, SevenBitAddress};
+use embedded_hal_async::i2c::{I2c, SevenBitAddress};
 
 pub use measurements::*;
 pub use config::*;
@@ -41,10 +41,9 @@ where
         self
     }
 
-    pub fn read_coefficients(&mut self) -> Result<Coefficients, Error<E>> {
+    pub async fn read_coefficients(&mut self) -> Result<Coefficients, Error<E>> {
         let mut coeff = [0u8; 21];
-        self.read_bytes(regs::BMP390_NVM_PAR_T1, &mut coeff)
-            .map_err(Error::I2c)?;
+        self.read_bytes(regs::BMP390_NVM_PAR_T1, &mut coeff).await?;
 
         let t1 = u16::from_le_bytes(coeff[0..2].try_into().unwrap());
         let t2 = u16::from_le_bytes(coeff[2..4].try_into().unwrap());
@@ -80,47 +79,48 @@ where
         })
     }
 
-    pub fn read_pressure(&mut self) -> Result<Pressure, Error<E>> {
+    pub async fn read_pressure(&mut self) -> Result<Pressure, Error<E>> {
         let mut out = [0u8; 3];
-        self.read_bytes(regs::BMP390_DATA_0, &mut out).map_err(Error::I2c)?;
+        self.read_bytes(regs::BMP390_DATA_0, &mut out).await?;
         Ok(Pressure::new(out))
     }
 
-    pub fn read_temperature(&mut self) -> Result<Temperature, Error<E>> {
+    pub async fn read_temperature(&mut self) -> Result<Temperature, Error<E>> {
         let mut out = [0u8; 3];
-        self.read_bytes(regs::BMP390_DATA_3, &mut out).map_err(Error::I2c)?;
+        self.read_bytes(regs::BMP390_DATA_3, &mut out).await?;
         Ok(Temperature::new(out))
     }
 
-    pub fn read(&mut self) -> Result<(Pressure, Temperature), Error<E>> {
+    pub async fn read(&mut self) -> Result<(Pressure, Temperature), Error<E>> {
         let mut out = [0u8; 6];
-        self.read_bytes(regs::BMP390_DATA_0, &mut out).map_err(Error::I2c)?;
+        self.read_bytes(regs::BMP390_DATA_0, &mut out).await?;
         Ok((
             Pressure::new(out[0..3].try_into().unwrap()),
             Temperature::new(out[3..6].try_into().unwrap())
         ))
     }
 
-    pub fn set_pwr_ctrl<T: Into<u8>>(&mut self, ctrl: T) -> Result<(), Error<E>> {
-        self.write_u8(regs::BMP390_PWR_CTRL, ctrl.into()).map_err(Error::I2c)
+    pub async fn set_pwr_ctrl<T: Into<u8>>(&mut self, ctrl: T) -> Result<(), Error<E>> {
+        self.write_u8(regs::BMP390_PWR_CTRL, ctrl.into()).await
     }
 
     fn i2c_addr(&self) -> u8 {
         if self.sdo_high { regs::BMP390_ADDRESS_HIGH } else { regs::BMP390_ADDRESS_LOW }
     }
 
-    fn read_u8(&mut self, reg: u8) -> Result<u8, E> {
+    async fn read_u8(&mut self, reg: u8) -> Result<u8, Error<E>> {
         let mut out: [u8; 1] = [0; 1];
-        self.i2c.write_read(self.i2c_addr(), &[reg], &mut out)?;
+        self.i2c.write_read(self.i2c_addr(), &[reg], &mut out).await
+            .map_err(Error::I2c)?;
         Ok(out[0])
     }
 
-    fn read_bytes(&mut self, reg: u8, buf: &mut [u8]) -> Result<(), E> {
-        self.i2c.write_read(self.i2c_addr(), &[reg], buf)
+    async fn read_bytes(&mut self, reg: u8, buf: &mut [u8]) -> Result<(), Error<E>> {
+        self.i2c.write_read(self.i2c_addr(), &[reg], buf).await.map_err(Error::I2c)
     }
 
-    fn write_u8(&mut self, reg: u8, value: u8) -> Result<(), E> {
-        self.i2c.write(self.i2c_addr(), &[reg, value])?;
+    async fn write_u8(&mut self, reg: u8, value: u8) -> Result<(), Error<E>> {
+        self.i2c.write(self.i2c_addr(), &[reg, value]).await.map_err(Error::I2c)?;
         Ok(())
     }
 }
