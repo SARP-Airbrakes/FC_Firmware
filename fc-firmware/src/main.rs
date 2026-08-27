@@ -17,6 +17,7 @@ use embassy_stm32::peripherals::*;
 use embassy_stm32::interrupt::InterruptExt;
 
 use panic_probe as _;
+use static_cell::StaticCell;
 
 use crate::cli::process_cli;
 use crate::memory::initialize_memory;
@@ -24,6 +25,7 @@ use crate::sensor::initialize_i2c;
 
 static EXECUTOR_HIGH: InterruptExecutor = InterruptExecutor::new();
 static EXECUTOR_LOW: InterruptExecutor = InterruptExecutor::new();
+static EXECUTOR_CLI: StaticCell<Executor> = StaticCell::new();
 
 #[interrupt]
 fn SPI2() {
@@ -56,7 +58,6 @@ fn main() -> ! {
 
     interrupt::SPI2.set_priority(interrupt::Priority::P6);
     let low_spawner = EXECUTOR_LOW.start(interrupt::SPI2);
-    low_spawner.spawn(unwrap!(process_cli(low_spawner)));
     low_spawner.spawn(unwrap!(initialize_memory(
         p.SPI1,
         p.PA5,
@@ -72,5 +73,9 @@ fn main() -> ! {
     high_spawner.spawn(unwrap!(process_usb(p.USB_OTG_FS, p.PA12, p.PA11)));
     high_spawner.spawn(unwrap!(initialize_i2c(high_spawner, p.I2C1, p.PB8, p.PB9, p.DMA1_CH6, p.DMA1_CH0)));
 
-    loop {}
+    EXECUTOR_CLI
+        .init_with(Executor::new)
+        .run(|spawner| {
+            spawner.spawn(unwrap!(process_cli(low_spawner)));
+        });
 }

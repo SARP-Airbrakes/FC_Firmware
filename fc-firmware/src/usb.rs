@@ -7,7 +7,8 @@ use embassy_usb::{Builder, class::cdc_acm::{CdcAcmClass, Receiver, Sender, State
 use static_cell::StaticCell;
 
 pub(crate) type UsbPipe = pipe::Pipe<CriticalSectionRawMutex, 512>;
-pub(crate) static USB_READ_PIPE: UsbPipe = UsbPipe::new();
+pub(crate) type UsbReadPipe = pipe::Pipe<CriticalSectionRawMutex, 64>;
+pub(crate) static USB_READ_PIPE: UsbReadPipe = UsbReadPipe::new();
 pub(crate) static USB_WRITE_PIPE: UsbPipe = UsbPipe::new();
 
 bind_interrupts!(struct Irqs {

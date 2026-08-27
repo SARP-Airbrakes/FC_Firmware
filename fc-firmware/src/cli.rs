@@ -1,19 +1,16 @@
 
-use core::{convert::Infallible, slice, sync::atomic::{AtomicUsize, Ordering}};
+use core::{convert::Infallible, slice, sync::atomic::{AtomicBool, AtomicUsize, Ordering}};
 use defmt::{unreachable, *};
 use embassy_executor::SendSpawner;
-use embassy_futures::join::join;
 use embassy_sync::{
-    blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex}, mutex::Mutex, pipe::Pipe, signal::Signal
+    blocking_mutex::raw::{NoopRawMutex}, mutex::Mutex
 };
+use heapless::{String, format};
 use embedded_cli::cli::CliBuilder;
-use ufmt::{uwriteln, uWrite};
 use crate::{memory::FLIGHT_LOG, usb::{USB_READ_PIPE, USB_WRITE_PIPE, UsbPipe}};
 
-static CLI_WRITE_PIPE: Pipe<CriticalSectionRawMutex, 128> = Pipe::new();
-
 #[derive(embedded_cli::Command)]
-enum Base {
+enum Base<'a> {
     /// Print version information for the hardware.
     Version,
     /// Erase portions or all of the on-board flight log memory.
@@ -24,82 +21,107 @@ enum Base {
 
         /// Erases all memory.
         #[arg(short = "a", long)]
-        all: bool
+        all: bool,
+
+        /// After erasing, sets the flight log flight title to this.
+        #[arg(long)]
+        title: Option<&'a str>
     },
     /// Reports stats from the flight log.
     Stats,
 }
 
-struct CliWriter;
+#[inline]
+async fn usb_write(string: &str) {
+    USB_WRITE_PIPE.write(string.as_bytes()).await;
+}
 
-impl uWrite for CliWriter {
-    type Error = embassy_sync::pipe::TryWriteError;
-
-    fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-        USB_WRITE_PIPE.try_write(s.as_bytes()).map(|_| ())
-    }
+async fn print_version() {
+    const VERSION_STRING: &'static str = 
+        concat!("Airbrakes flight computer firmware (version v", env!("CARGO_PKG_VERSION"), ")\r\n");
+    usb_write(VERSION_STRING).await;
+    usb_write("(c) 2026 Society for Advanced Rocket Propulsion\r\n").await;
 }
 
 #[embassy_executor::task]
-pub async fn erase_command(sector: Option<u32>, all: bool) {
-    if sector.is_some() && all {
-        USB_WRITE_PIPE.write("  erase: Multiple options selected for erasure.".as_bytes()).await;
-        return;
-    }
-    if let Some(sector) = sector {
-        let mut l = FLIGHT_LOG.lock().await;
-        let f = l.as_mut().map(|l| l.erase_sector(sector));
+pub async fn handle_command(
+    writer: &'static UsbPipe,
+    command: &'static Base<'static>,
+    mark_done: fn()
+) {
+    scopeguard::defer! { mark_done(); }
 
-        if let Some(f) = f {
-            let r = f.await;
-            match r {
-                Ok(_) => {
-                    CLI_WRITE_PIPE.write("  erase: Successfully erased sector.".as_bytes()).await;
-                },
-                Err(e) => {
-                    CLI_WRITE_PIPE.write("  erase: Encountered error (check RTT).".as_bytes()).await;
-                    warn!("Failed: {}", e);
+    match *command {
+        Base::Version => {
+            print_version().await;
+        },
+        Base::Erase { sector, all, title } => {
+            let mut l = FLIGHT_LOG.lock().await;
+            if l.is_none() {
+                usb_write("Flight log unavailable.\r\n").await;
+                return;
+            }
+            let log = l.as_mut().unwrap();
+            if all {
+                usb_write("Erasing entire chip...\r\n").await;
+                log.erase_chip().await;
+                log.reset();
+                usb_write("Chip erased.\r\n").await;
+            } else if let Some(sector) = sector {
+                usb_write("Erasing target sector...\r\n").await;
+                log.erase_sector(sector).await;
+                usb_write("Sector erased.\r\n").await;
+            } else if title.is_none() {
+                usb_write("Nothing selected to erase, or title not given.\r\n").await;
+                return;
+            }
+            if let Some(title) = title {
+                let string = String::<32, u8>::try_from(title);
+                if let Ok(string) = string {
+                    log.header.flight_name = Some(string);
+                    log.update_header().await;
+                    usb_write("Wrote title: ").await;
+                    usb_write(title).await;
+                    usb_write("\r\n").await;
+                } else {
+                    usb_write("Given title too long; not writing.\r\n");
                 }
             }
-        }
-    } else if all {
-        CLI_WRITE_PIPE.write("  erase: Erasing all. This may take awhile..".as_bytes()).await;
-
-        let mut l = FLIGHT_LOG.lock().await;
-        let f = l.as_mut().map(|l| l.erase_chip());
-
-        if let Some(f) = f {
-            let r = f.await;
-            match r {
-                Ok(_) => {
-                    CLI_WRITE_PIPE.write("  erase: Successfully erased chip.".as_bytes()).await;
-                },
-                Err(e) => {
-                    CLI_WRITE_PIPE.write("  erase: Encountered error (check RTT).".as_bytes()).await;
-                    warn!("Failed: {}", e);
-                }
+        },
+        Base::Stats => {
+            let mut l = FLIGHT_LOG.lock().await;
+            if l.is_none() {
+                usb_write("Flight log unavailable.\r\n").await;
+                return;
             }
+            let log = l.as_mut().unwrap();
+            let formatted = format!(
+                64; "Flight name: {}\r\n", 
+                log.header.flight_name.as_ref().map_or("<untitled>", String::as_str)
+            );
+            usb_write(formatted.as_ref().map_or(
+                "Flight name: <truncated>\r\n",
+                String::as_str
+            )).await;
+            let formatted = format!(
+                64; "Total written packets: {}\r\n",
+                log.header.packet_count
+            );
+            usb_write(formatted.as_ref().map_or(
+                "Total written packets: <truncated>\r\n",
+                String::as_str
+            )).await;
+            // Floating point formats are much heavier; avoid if possible
+            let formatted = format!(
+                64; "Last write: {}.{:03}s after boot\r\n",
+                log.header.last_write.as_millis() / 1000,
+                log.header.last_write.as_millis() % 1000,
+            );
+            usb_write(formatted.as_ref().map_or(
+                "Last write: <error>\r\n",
+                String::as_str
+            )).await;
         }
-    }
-}
-
-#[embassy_executor::task]
-pub async fn stats_command() {
-    let mut l = FLIGHT_LOG.lock().await;
-    if let Some(header) = l.as_mut().map(|l| &l.header) {
-        if let Some(name) = &header.flight_name {
-            let _ = uwriteln!(CliWriter, "  stats: Current flight name: {}.", name.as_str());
-        } else {
-            let _ = uwriteln!(CliWriter, "  stats: Current flight name: <untitled>");
-        }
-        let _ = uwriteln!(
-            CliWriter,
-            "  stats: Last write was {}ms",
-            header.last_write.as_millis()
-        );
-        let _ = uwriteln!(CliWriter, "  stats: {} packets total", header.packet_count);
-    } else {
-        let _ = uwriteln!(CliWriter, "  stats: Failed to access the flight log.");
     }
 }
 
@@ -108,67 +130,57 @@ pub async fn process_cli(spawner: SendSpawner) {
     let dropped = AtomicUsize::new(0);
     let writer = PipeWriter::new(&USB_WRITE_PIPE, &dropped);
 
+    print_version().await;
+    USB_WRITE_PIPE.write("Use the command 'help' to view available commands.\r\n".as_bytes()).await;
+    USB_WRITE_PIPE.write("\r\n".as_bytes()).await;
+
     let cli = CliBuilder::default()
         .writer(writer)
         .build()
         .unwrap();
     let cli = Mutex::<NoopRawMutex, _>::new(cli);
 
-    join(
-        async {
-            loop {
-                let dropped = dropped.swap(0, Ordering::AcqRel);
-                if dropped > 0 {
-                    warn!("{} bytes dropped from console!", dropped);
-                }
+    loop {
+        let dropped = dropped.swap(0, Ordering::AcqRel);
+        if dropped > 0 {
+            warn!("{} bytes dropped from console!", dropped);
+        }
 
-                let mut c = 0u8;
-                USB_READ_PIPE.read(slice::from_mut(&mut c)).await;
+        let mut c = 0u8;
+        USB_READ_PIPE.read(slice::from_mut(&mut c)).await;
 
-                let _ = cli.lock().await.process_byte::<Base, _>(
-                    c,
-                    &mut Base::processor(|cli, command| {
-                        match command {
-                            Base::Version => {
-                                uwriteln!(cli.writer(), "Airbrakes Flight Computer firmware");
-                                uwriteln!(cli.writer(), "(c) 2026 Society for Advanced Rocket Propulsion");
-                                uwriteln!(cli.writer(), "v{}", env!("CARGO_PKG_VERSION"));
-                            },
+        let mut processor = Base::processor(|cli, command| {
+            let command_ref = &command;
 
-                            Base::Erase { sector, all } => {
-                                if let Ok(t) = erase_command(sector, all) {
-                                    spawner.spawn(t);
-                                } else {
-                                    uwriteln!(cli.writer(), "Failed to start the erase process.");
-                                }
-                            },
-
-                            Base::Stats => {
-                                if let Ok(t) = stats_command() {
-                                    spawner.spawn(t);
-                                } else {
-                                    uwriteln!(cli.writer(), "Failed to start the stats process.");
-                                }
-                            }
-                        };
-                        Ok(())
-                    })
-                );
-
+            static DONE: AtomicBool = AtomicBool::new(false);
+            fn mark_done() {
+                DONE.store(true, Ordering::Release);
+                cortex_m::asm::sev();
             }
-        }, 
-        async {
-            loop {
-                let mut buf = [0u8; 64];
-                let num = CLI_WRITE_PIPE.read(&mut buf).await;
-                cli.lock().await.write(|w| {
-                    for i in 0..num {
-                        w.write_char(buf[i] as char);
-                    }
-                    Ok(())
-                });
+            DONE.store(false, Ordering::Release);
+
+            let command = unsafe {
+                core::mem::transmute::<&'_ Base<'_>, &'static Base<'static>>(&command_ref)
+            };
+
+            spawner.spawn(
+                handle_command(&USB_WRITE_PIPE, command, mark_done)
+                    .unwrap()
+            );
+
+            ::core::assert_eq!(cortex_m::peripheral::SCB::vect_active(), cortex_m::peripheral::scb::VectActive::ThreadMode);
+            while !DONE.load(Ordering::Acquire) {
+                cortex_m::asm::wfe();
             }
-        }).await;
+            cli.writer().write_str(""); // to prompt
+            Ok(())
+        });
+        let _ = cli.lock().await.process_byte::<Base, _>(
+            c,
+            &mut processor
+        );
+
+    }
 }
 
 /// A blocking writer that wraps around a pipe synchronization primitive.
