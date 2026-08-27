@@ -23,7 +23,7 @@
             "coreConfigs": [
                 {
                     "coreIndex": 0,
-                    "programBinary": "../target/thumbv7em-none-eabihf/debug/${workspaceFolderBasename}",
+                    "programBinary": "../target/thumbv7em-none-eabihf/debug/fc-firmware",
                     "svdFile": "../.vscode/STM32F411.svd",
                     "rttEnabled": true
                 }

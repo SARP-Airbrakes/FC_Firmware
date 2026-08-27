@@ -1,6 +1,6 @@
 
 
-use bmi088::Bmi088;
+use bmi088::{Bmi088, AccelerationLike};
 use bmp390::{Bmp390, PowerCtrl, PowerCtrlMode};
 
 use defmt::*;
@@ -41,13 +41,14 @@ pub async fn initialize_i2c(
 async fn initialize_bmi(bus: &'static fc_firmware::I2cBus) {
     let device = I2cDevice::new(bus);
     let mut bmi = Bmi088::new(device);
-    unwrap!(bmi.init(&mut embassy_time::Delay {}).await);
+    unwrap!(bmi.enable_acc(&mut embassy_time::Delay).await);
     unwrap!(bmi.set_acc_range(bmi088::AccRange::Range6G).await);
+
+    let range = bmi.acc_range();
 
     loop {
         Timer::after_secs(1).await;
         if let Ok(m) = bmi.read_acc().await {
-            let range = bmi.acc_range();
             debug!("Measurement: {}", m);
             debug!("{} {} {}", m.x_ms2(range), m.y_ms2(range), m.z_ms2(range))
         }

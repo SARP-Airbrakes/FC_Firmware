@@ -4,9 +4,7 @@ use defmt::{unreachable, *};
 use embassy_executor::SendSpawner;
 use embassy_futures::join::join;
 use embassy_sync::{
-    mutex::Mutex,
-    blocking_mutex::raw::{NoopRawMutex, CriticalSectionRawMutex}, 
-    pipe::Pipe
+    blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex}, mutex::Mutex, pipe::Pipe, signal::Signal
 };
 use embedded_cli::cli::CliBuilder;
 use ufmt::{uwriteln, uWrite};
@@ -27,13 +25,25 @@ enum Base {
         /// Erases all memory.
         #[arg(short = "a", long)]
         all: bool
+    },
+    /// Reports stats from the flight log.
+    Stats,
+}
+
+struct CliWriter;
+
+impl uWrite for CliWriter {
+    type Error = embassy_sync::pipe::TryWriteError;
+
+    fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
+        USB_WRITE_PIPE.try_write(s.as_bytes()).map(|_| ())
     }
 }
 
 #[embassy_executor::task]
 pub async fn erase_command(sector: Option<u32>, all: bool) {
     if sector.is_some() && all {
-        CLI_WRITE_PIPE.write("  erase: Multiple options selected for erasure.".as_bytes()).await;
+        USB_WRITE_PIPE.write("  erase: Multiple options selected for erasure.".as_bytes()).await;
         return;
     }
     if let Some(sector) = sector {
@@ -53,6 +63,8 @@ pub async fn erase_command(sector: Option<u32>, all: bool) {
             }
         }
     } else if all {
+        CLI_WRITE_PIPE.write("  erase: Erasing all. This may take awhile..".as_bytes()).await;
+
         let mut l = FLIGHT_LOG.lock().await;
         let f = l.as_mut().map(|l| l.erase_chip());
 
@@ -69,14 +81,32 @@ pub async fn erase_command(sector: Option<u32>, all: bool) {
             }
         }
     }
+}
 
-
+#[embassy_executor::task]
+pub async fn stats_command() {
+    let mut l = FLIGHT_LOG.lock().await;
+    if let Some(header) = l.as_mut().map(|l| &l.header) {
+        if let Some(name) = &header.flight_name {
+            let _ = uwriteln!(CliWriter, "  stats: Current flight name: {}.", name.as_str());
+        } else {
+            let _ = uwriteln!(CliWriter, "  stats: Current flight name: <untitled>");
+        }
+        let _ = uwriteln!(
+            CliWriter,
+            "  stats: Last write was {}ms",
+            header.last_write.as_millis()
+        );
+        let _ = uwriteln!(CliWriter, "  stats: {} packets total", header.packet_count);
+    } else {
+        let _ = uwriteln!(CliWriter, "  stats: Failed to access the flight log.");
+    }
 }
 
 #[embassy_executor::task]
 pub async fn process_cli(spawner: SendSpawner) {
-    static DROPPED: AtomicUsize = AtomicUsize::new(0);
-    let writer: PipeWriter<'static> = PipeWriter::new(&USB_WRITE_PIPE, &DROPPED);
+    let dropped = AtomicUsize::new(0);
+    let writer = PipeWriter::new(&USB_WRITE_PIPE, &dropped);
 
     let cli = CliBuilder::default()
         .writer(writer)
@@ -105,9 +135,20 @@ pub async fn process_cli(spawner: SendSpawner) {
                                 uwriteln!(cli.writer(), "v{}", env!("CARGO_PKG_VERSION"));
                             },
 
-                            // This might be the ugliest piece of code in the entire firmware.
                             Base::Erase { sector, all } => {
-                                spawner.spawn(unwrap!(erase_command(sector, all)));
+                                if let Ok(t) = erase_command(sector, all) {
+                                    spawner.spawn(t);
+                                } else {
+                                    uwriteln!(cli.writer(), "Failed to start the erase process.");
+                                }
+                            },
+
+                            Base::Stats => {
+                                if let Ok(t) = stats_command() {
+                                    spawner.spawn(t);
+                                } else {
+                                    uwriteln!(cli.writer(), "Failed to start the stats process.");
+                                }
                             }
                         };
                         Ok(())
@@ -118,7 +159,7 @@ pub async fn process_cli(spawner: SendSpawner) {
         }, 
         async {
             loop {
-                let mut buf = [0u8; 32];
+                let mut buf = [0u8; 64];
                 let num = CLI_WRITE_PIPE.read(&mut buf).await;
                 cli.lock().await.write(|w| {
                     for i in 0..num {
@@ -156,6 +197,7 @@ impl<'a> embedded_io::Write for PipeWriter<'a> {
         match self.pipe.try_write(buf) {
             Ok(n) => Ok(n),
             Err(_) => {
+                self.dropped.fetch_add(buf.len(), Ordering::AcqRel);
                 Ok(buf.len()) // report ok nonetheless
             }
         }

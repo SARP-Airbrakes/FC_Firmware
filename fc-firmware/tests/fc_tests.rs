@@ -7,7 +7,7 @@
 #[embedded_test::tests]
 mod tests {
     use defmt::{unwrap, info};
-    use bmi088::Bmi088;
+    use bmi088::{Bmi088, AccelerationLike};
     use bmp390::{Bmp390, Coefficients};
     use w25qxxxjv::{W25qxxxjv, Model};
     use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
@@ -54,7 +54,7 @@ mod tests {
 
         let device = I2cDevice::new(bus);
         let mut bmi = Bmi088::new(device);
-        unwrap!(bmi.init(&mut embassy_time::Delay {}).await);
+        unwrap!(bmi.enable_acc(&mut embassy_time::Delay).await);
         unwrap!(bmi.set_acc_range(bmi088::AccRange::Range6G).await);
 
         let device = I2cDevice::new(bus);
@@ -85,7 +85,8 @@ mod tests {
         }
     }
 
-    /// Tests reading the acceleration off of the BMI088 connected to the board.
+    /// Tests reading the acceleration off of the BMI088 connected to the board;
+    /// assuming that the board is upright.
     #[test]
     async fn read_acceleration(mut state: State) {
         let m = state.bmi.read_acc().await.unwrap();
@@ -97,12 +98,32 @@ mod tests {
             m.z_ms2(bmi088::AccRange::Range6G)
         );
 
-        // assuming the accelerometer is not moving, check we are within normal bounds
+        // assuming the accelerometer is not moving and upright, check we are
+        // within normal bounds
         assert!(m.z_ms2(bmi088::AccRange::Range6G) > 5.0);
         assert!(m.z_ms2(bmi088::AccRange::Range6G) < 15.0);
 
-        // then check if we are in reasonable bounds
+        // then check if we are in reasonable bounds (again assuming upright)
         assert!(f32::abs(m.z_ms2(bmi088::AccRange::Range6G) - 9.81) <= 0.5);
+    }
+
+    /// Runs the self-test procedure on the BMI088 accelerometer, and checks if
+    /// the output is within the given minimums (see section 4.6.1 and table 9).
+    #[test]
+    async fn acc_self_test(mut state: State) {
+        let result = unwrap!(state.bmi.self_test_acc(&mut embassy_time::Delay).await);
+        
+        info!(
+            "Self-test result acquired: ({} mg, {} mg, {} mg)",
+            result.x_mg(bmi088::AccRange::Range24G),
+            result.y_mg(bmi088::AccRange::Range24G),
+            result.z_mg(bmi088::AccRange::Range24G)
+        );
+
+        // From table 9.
+        assert!(result.x_mg(bmi088::AccRange::Range24G) >= 1000.0);
+        assert!(result.y_mg(bmi088::AccRange::Range24G) >= 1000.0);
+        assert!(result.z_mg(bmi088::AccRange::Range24G) >= 500.0);
     }
 
     #[test]
@@ -245,10 +266,11 @@ mod tests {
         let mut log = FlightLog::new(state.w25);
         unwrap!(log.update_header().await);
 
-        let packet = Packet::TemperaturePressure {
+        let packet = Packet::BarometerMeasurement {
             time: FlightTime::now(), 
             temperature: 15.0,
-            pressure: 101325.0
+            pressure: 101325.0,
+            altitude: 0.0,
         };
         unwrap!(log.push_packet(packet.clone()).await);
 
@@ -270,15 +292,17 @@ mod tests {
         let mut log = FlightLog::new(state.w25);
         unwrap!(log.update_header().await);
 
-        let packet1 = Packet::TemperaturePressure {
+        let packet1 = Packet::BarometerMeasurement {
             time: FlightTime::now(), 
             temperature: 15.0,
-            pressure: 101325.0
+            pressure: 101325.0,
+            altitude: 0.0,
         };
-        let packet2 = Packet::TemperaturePressure {
+        let packet2 = Packet::BarometerMeasurement {
             time: FlightTime::now(), 
             temperature: 25.0,
-            pressure: 99000.0
+            pressure: 99000.0,
+            altitude: 50.0,
         };
         unwrap!(log.push_packet(packet1.clone()).await);
         unwrap!(log.push_packet(packet2.clone()).await);
@@ -306,10 +330,11 @@ mod tests {
         let mut log = FlightLog::new(state.w25);
         unwrap!(log.update_header().await);
 
-        let packet1 = Packet::TemperaturePressure {
+        let packet1 = Packet::BarometerMeasurement {
             time: FlightTime::now(), 
             temperature: 15.0,
-            pressure: 101325.0
+            pressure: 101325.0,
+            altitude: 0.0,
         };
         unwrap!(log.push_packet(packet1.clone()).await);
 
@@ -353,10 +378,11 @@ mod tests {
         let mut log = FlightLog::new(log.destroy());
         unwrap!(log.read_header().await);
 
-        let packet2 = Packet::TemperaturePressure {
+        let packet2 = Packet::BarometerMeasurement {
             time: FlightTime::now(), 
             temperature: 25.0,
-            pressure: 99000.0
+            pressure: 99000.0,
+            altitude: 50.0,
         };
         unwrap!(log.push_packet(packet2.clone()).await);
 

@@ -1,6 +1,7 @@
 use embassy_time::Instant;
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::{delay::DelayNs, spi};
+use heapless::String;
 use postcard::accumulator::{CobsAccumulator, FeedResult};
 use serde::{Deserialize, Serialize};
 use w25qxxxjv::{W25qxxxjv, Wusize};
@@ -9,15 +10,29 @@ const LOG_MAGIC_CONSTANT: &'static str = concat!("FLIGHTLOG V1");
 
 /// A header placed at the very start of memory.
 #[derive(Serialize, Deserialize)]
-struct LogHeader {
+pub struct LogHeader {
     /// Magic constant (see [`LOG_MAGIC_CONSTANT`]).
     magic: [u8; LOG_MAGIC_CONSTANT.len()],
     /// The position of the next write (address on the W25Q128JV).
     write_cursor: Wusize,
     /// Time that the header was last updated.
-    last_write: FlightTime,
+    pub last_write: FlightTime,
     /// Total number of packets written.
-    packet_count: usize,
+    pub packet_count: usize,
+    /// Name of the flight.
+    pub flight_name: Option<String<32, u8>>,
+}
+
+impl Default for LogHeader {
+    fn default() -> Self {
+        Self {
+            magic: LOG_MAGIC_CONSTANT.as_bytes().try_into().unwrap_or_default(),
+            write_cursor: 0x1000,
+            last_write: FlightTime::now(),
+            packet_count: 0usize,
+            flight_name: None,
+        }
+    }
 }
 
 /// A time during flight, measured in milliseconds since boot.
@@ -26,13 +41,24 @@ pub struct FlightTime(u64);
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, defmt::Format)]
 pub enum Packet {
-    TemperaturePressure {
+    BarometerMeasurement {
         time: FlightTime,
         /// Temperature in Celsius.
         temperature: f32,
         /// Pressure in Pascals.
         pressure: f32,
-    }
+        /// Altitude in meters.
+        altitude: f32,
+    },
+    AccelerometerMeasurement {
+        time: FlightTime,
+        /// X-axis acceleration in m/s^2.
+        x: f32,
+        /// Y-axis acceleration in m/s^2.
+        y: f32,
+        /// Z-axis acceleration in m/s^2.
+        z: f32,
+    },
 }
 
 pub struct FlightLog<'a, S, CS, D> {
@@ -40,7 +66,7 @@ pub struct FlightLog<'a, S, CS, D> {
     /// The position of the next read (address on the W25Q128JV).
     read_cursor: Wusize,
     /// Header to be written to the start.
-    header: LogHeader,
+    pub header: LogHeader,
 }
 
 #[derive(Debug, defmt::Format)]
@@ -61,12 +87,7 @@ where
         Self {
             w25,
             read_cursor: 0x1000, // packets always start a sector in
-            header: LogHeader {
-                magic: LOG_MAGIC_CONSTANT.as_bytes().try_into().unwrap_or_default(),
-                write_cursor: 0x1000,
-                last_write: FlightTime::now(),
-                packet_count: 0usize
-            }
+            header: Default::default()
         }
     }
 
@@ -82,18 +103,11 @@ where
         self.w25.erase_sector(sector).await.map_err(Error::W25)
     }
 
+    /// Resets the internal state of the flight log, including the header. You
+    /// should probably [`Self::read_header`].
     pub fn reset(&mut self) {
-        self.header = LogHeader {
-            magic: LOG_MAGIC_CONSTANT.as_bytes().try_into().unwrap_or_default(),
-            write_cursor: 0x1000,
-            last_write: FlightTime::now(),
-            packet_count: 0usize
-        };
+        self.header = Default::default();
         self.read_cursor = 0x1000;
-    }
-
-    pub fn with_w25<T>(&mut self, f: impl FnOnce(&mut W25qxxxjv<'a, S, CS, D>) -> T) -> T {
-        f(&mut self.w25)
     }
 
     pub async fn read_header(&mut self) -> Result<(), Error<w25qxxxjv::Error<SE, PE>>> {
@@ -172,6 +186,10 @@ impl FlightTime {
     
     pub fn now() -> Self {
         Self(Instant::now().as_millis())
+    }
+
+    pub fn as_millis(self) -> u64 {
+        self.0
     }
 }
 

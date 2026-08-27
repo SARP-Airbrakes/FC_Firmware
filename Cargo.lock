@@ -774,9 +774,11 @@ dependencies = [
  "embedded-io 0.6.1",
  "embedded-io-async 0.7.0",
  "embedded-test",
+ "heapless 0.9.3",
  "panic-abort",
  "panic-probe",
  "postcard",
+ "scopeguard",
  "semihosting",
  "serde",
  "static_cell",
@@ -865,7 +867,9 @@ version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25ba4bd83f9415b58b4ed8dc5714c76e626a105be4646c02630ad730ad3b5aa4"
 dependencies = [
+ "defmt 1.1.1",
  "hash32",
+ "serde_core",
  "stable_deref_trait",
 ]
 
@@ -1183,6 +1187,12 @@ name = "scoped-tls"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294"
+
+[[package]]
+name = "scopeguard"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "sdio-host"

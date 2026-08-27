@@ -1,4 +1,5 @@
 
+use defmt::unwrap;
 use embassy_stm32::{Peri, bind_interrupts, dma, gpio, mode::Async, peripherals::*, spi};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, mutex::Mutex};
 use fc_firmware::log::{FlightLog, Packet};
@@ -19,6 +20,10 @@ bind_interrupts!(struct Irqs {
     DMA2_STREAM2 => dma::InterruptHandler<DMA2_CH2>;
     DMA2_STREAM3 => dma::InterruptHandler<DMA2_CH3>;
 });
+
+pub async fn push_packet(packet: Packet) {
+    LOG_WRITE_CHANNEL.send(packet).await;
+}
 
 /// Initializes the flash memory for flight log usage.
 #[embassy_executor::task]
@@ -45,6 +50,7 @@ pub async fn initialize_memory(
     if let Err(_) = log.read_header().await {
         defmt::debug!("Failed to read log header.");
     }
+    unwrap!(log.update_header().await);
 
     // Move log to global mutex.
     { *(FLIGHT_LOG.lock().await) = Some(log); }

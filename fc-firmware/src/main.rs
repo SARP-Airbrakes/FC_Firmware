@@ -55,9 +55,9 @@ fn main() -> ! {
     debug!("Starting flight firmware.");
 
     interrupt::SPI2.set_priority(interrupt::Priority::P6);
-    let spawner = EXECUTOR_LOW.start(interrupt::SPI2);
-    spawner.spawn(unwrap!(process_cli(spawner)));
-    spawner.spawn(unwrap!(initialize_memory(
+    let low_spawner = EXECUTOR_LOW.start(interrupt::SPI2);
+    low_spawner.spawn(unwrap!(process_cli(low_spawner)));
+    low_spawner.spawn(unwrap!(initialize_memory(
         p.SPI1,
         p.PA5,
         p.PA7,
@@ -68,10 +68,9 @@ fn main() -> ! {
     )));
 
     interrupt::SPI3.set_priority(interrupt::Priority::P7);
-    let spawner = EXECUTOR_HIGH.start(interrupt::SPI3);
-    spawner.spawn(unwrap!(process_usb(p.USB_OTG_FS, p.PA12, p.PA11)));
-    spawner.spawn(unwrap!(initialize_i2c(spawner, p.I2C1, p.PB8, p.PB9, p.DMA1_CH6, p.DMA1_CH0)));
-
+    let high_spawner = EXECUTOR_HIGH.start(interrupt::SPI3);
+    high_spawner.spawn(unwrap!(process_usb(p.USB_OTG_FS, p.PA12, p.PA11)));
+    high_spawner.spawn(unwrap!(initialize_i2c(high_spawner, p.I2C1, p.PB8, p.PB9, p.DMA1_CH6, p.DMA1_CH0)));
 
     loop {}
 }
