@@ -4,4 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+defmt = { version = "1.1.1", optional = true }
+libm = "0.2.16"
 nalgebra = { version = "0.35.0", default-features = false, features = ["macros", "matrixmultiply"] }
+
+[features]
+defmt = ["dep:defmt"]
