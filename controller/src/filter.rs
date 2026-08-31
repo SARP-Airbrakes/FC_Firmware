@@ -5,26 +5,8 @@
 
 use nalgebra::{Matrix1, Matrix4, RowVector4, Vector4};
 
-use crate::{solver::CROSS_SECTIONAL_AREA_M2, stage::FlightStage};
+use crate::{stage::FlightStage, constants::*};
 
-/// Universal gas constant (J/(kmol*K))
-const R_JPKMOLK: f32 = 8314.46;
-/// Acceleration due to gravity at sea level (m/s^2)
-pub const GRAVITY_MPS2: f32 = 9.80665;
-/// The mean molar mass of air at sea level (kg/kmol)
-const M_0_KGPKMOL: f32 = 28.9644;
-/// Temperature gradient in the troposphere (K/m).
-const L_0_KPM: f32 = -0.0065;
-/// The pressure at sea level (Pa).
-const P_0_PA: f32 = 101325.0;
-/// The temperature at sea level (K).
-const T_0_K: f32 = 288.15;
-
-/// The density of air at sea level (kg/m^3).
-const RHO_0_KGPM3: f32 = P_0_PA * M_0_KGPKMOL / (R_JPKMOLK * T_0_K);
-
-/// Exponent in the barometric equation (for the troposphere).
-const BARO_EXP: f32 = GRAVITY_MPS2 * M_0_KGPKMOL / (R_JPKMOLK * L_0_KPM);
 /// The constant coefficient that appearsawhen deriving the barometric equation.
 const ALPHA: f32 = BARO_EXP * L_0_KPM * P_0_PA / T_0_K;
 
@@ -212,7 +194,7 @@ impl Filter {
             -BARO_EXP - 1.0
         );
         let vel = self.upward_velocity();
-        0.5 * density * vel * vel * drag_coefficient * CROSS_SECTIONAL_AREA_M2
+        0.5 * density * vel * vel * drag_coefficient * ROCKET_CROSS_SECTIONAL_AREA_M2
     }
 
     fn drag_jacobian(&self, drag_coefficient: f32) -> RowVector4<f32> {
@@ -227,8 +209,8 @@ impl Filter {
 
         let vel = self.upward_velocity();
         RowVector4::new(
-            0.5 * density_ds * vel * vel * drag_coefficient * CROSS_SECTIONAL_AREA_M2,
-            density * vel * drag_coefficient * CROSS_SECTIONAL_AREA_M2,
+            0.5 * density_ds * vel * vel * drag_coefficient * ROCKET_CROSS_SECTIONAL_AREA_M2,
+            density * vel * drag_coefficient * ROCKET_CROSS_SECTIONAL_AREA_M2,
             0.0,
             0.0
         )
