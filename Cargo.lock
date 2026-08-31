@@ -144,6 +144,7 @@ dependencies = [
 name = "controller"
 version = "0.1.0"
 dependencies = [
+ "approx",
  "defmt 1.1.1",
  "libm",
  "nalgebra",

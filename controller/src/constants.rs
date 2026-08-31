@@ -30,3 +30,33 @@ pub(crate) const RHO_0_KGPM3: f32 = P_0_PA * M_0_KGPKMOL / (R_JPKMOLK * T_0_K);
 
 /// Exponent in the barometric equation (for the troposphere).
 pub(crate) const BARO_EXP: f32 = GRAVITY_MPS2 * M_0_KGPKMOL / (R_JPKMOLK * L_0_KPM);
+
+/// Estimate the air density (kg/m^3) at an altitude.
+pub(crate) fn estimated_density(altitude_m: f32) -> f32 {
+    RHO_0_KGPM3 * libm::powf(
+        1.0 + L_0_KPM * altitude_m / T_0_K,
+        -BARO_EXP - 1.0
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_relative_eq;
+
+    #[test]
+    fn density_sea_level() {
+        // density at sea level
+        let density = estimated_density(0.0);
+
+        assert_relative_eq!(density, RHO_0_KGPM3, epsilon = 1.0e-6);
+    }
+
+    #[test]
+    fn density_tropopause() {
+        // density at the top of troposphere; entering tropopause
+        let density = estimated_density(11_000.0);
+
+        assert_relative_eq!(density, 0.3639, epsilon = 1.0e-4);
+    }
+}

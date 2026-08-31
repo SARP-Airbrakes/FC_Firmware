@@ -189,19 +189,13 @@ impl Filter {
     }
 
     fn drag(&self, drag_coefficient: f32) -> f32 {
-        let density = RHO_0_KGPM3 * libm::powf(
-            1.0 + L_0_KPM * self.altitude() / T_0_K,
-            -BARO_EXP - 1.0
-        );
+        let density = estimated_density(self.altitude());
         let vel = self.upward_velocity();
         0.5 * density * vel * vel * drag_coefficient * ROCKET_CROSS_SECTIONAL_AREA_M2
     }
 
     fn drag_jacobian(&self, drag_coefficient: f32) -> RowVector4<f32> {
-        let density = RHO_0_KGPM3 * libm::powf(
-            1.0 + L_0_KPM * self.altitude() / T_0_K,
-            -BARO_EXP - 1.0
-        );
+        let density = estimated_density(self.altitude());
         let density_ds = RHO_0_KGPM3 * (-BARO_EXP - 1.0) * (L_0_KPM / T_0_K) * libm::powf(
             1.0 + L_0_KPM * self.altitude() / T_0_K,
             -BARO_EXP - 2.0

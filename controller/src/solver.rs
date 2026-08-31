@@ -41,10 +41,7 @@ impl Solver {
             return ROCKET_CLOSE_CD;
         }
 
-        let density = RHO_0_KGPM3 * libm::powf(
-            1.0 + L_0_KPM * altitude_m / T_0_K,
-            -BARO_EXP - 1.0
-        );
+        let density = estimated_density(altitude_m);
 
         let mut curr_cd = ROCKET_CLOSE_CD + 0.2;
         
