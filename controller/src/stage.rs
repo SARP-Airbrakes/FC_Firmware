@@ -3,6 +3,7 @@
 const MAXIMUM_ACTIVE_VELOCITY: f32 = 200.0;
 
 /// Stages of flight.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FlightStage {
     /// Waiting on the pad.
     Idle,
@@ -32,7 +33,7 @@ impl FlightStage {
         match self {
             FlightStage::Idle => {
                 // This transition should occur on launch.
-                if upward_acceleration > 5.0 &&
+                if upward_acceleration > 10.0 &&
                     upward_velocity > 5.0
                 {
                     return Some(FlightStage::Boost { start_time_ms: time_ms })

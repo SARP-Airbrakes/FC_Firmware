@@ -4,3 +4,5 @@ pub(crate) mod constants;
 pub mod solver;
 pub mod filter;
 pub mod stage;
+
+pub use constants::estimated_altitude;

@@ -1,3 +1,6 @@
 /target
 
+controller-tests/data.csv
+controller-tests/filter_out.csv
+
 rustc-ice*

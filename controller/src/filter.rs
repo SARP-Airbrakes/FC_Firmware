@@ -10,6 +10,9 @@ use crate::{stage::FlightStage, constants::*};
 /// The constant coefficient that appearsawhen deriving the barometric equation.
 const ALPHA: f32 = BARO_EXP * L_0_KPM * P_0_PA / T_0_K;
 
+/// Minimum time between propagations.
+const MIN_PROPAGATION_TIME: f32 = 1e-4;
+
 /// The Jacobian of f(x(t),u(t)) over x(t).
 const F_MATRIX: Matrix4<f32> = Matrix4::new(
     0.0, 1.0, 0.0, 0.0,
@@ -20,10 +23,14 @@ const F_MATRIX: Matrix4<f32> = Matrix4::new(
 
 /// The measurement noise covariance matrix (a scalar variance) for barometer
 /// pressure measurements.
-const R_P: Matrix1<f32> = Matrix1::new(0.0); // TODO: measure
+const R_P: Matrix1<f32> = Matrix1::new(1.1); // TODO: measure
 /// The measurement noise covariance matrix (a scalar variance) for
 /// accelerometer acceleration measurements.
-const R_A: Matrix1<f32> = Matrix1::new(0.0); // TODO: estimate
+const R_A: Matrix1<f32> = Matrix1::new(1.8e-2); // TODO: estimate
+
+/// The variance in the drift of the accelerometer bias.
+const ACCELEROMETER_BIAS_NOISE_VARIANCE: f32 = 1.0e-4;
+const BAROMETER_BIAS_NOISE_VARIANCE: f32 = 5.0e-3;
 
 /// This class implements an Extended Kalman filter that tracks the altitude of
 /// the rocket in flight.
@@ -51,17 +58,19 @@ impl Filter {
     pub fn new(altitude: f32, time_ms: u64) -> Self {
         Filter {
             state: Vector4::<f32>::x() * altitude,
-            covariance: Matrix4::<f32>::identity() * 0.1, // TODO: stupid default
+            covariance: Matrix4::from_partial_diagonal(&[1.0, 0.0, 0.2, 0.5]),
             last_time_ms: time_ms,
             last_upward_acceleration: Some(0.0)
         }
     }
 
     pub fn propagate(&mut self, time_ms: u64, measured_upward_acceleration: f32) -> Result<(), Error> {
-        let delta_t = (time_ms - self.last_time_ms) as f32 / 1000.0;
+        let delta_t = (time_ms as i64 - self.last_time_ms as i64) as f32 / 1000.0;
         if delta_t < 0.0 { // prevent any backwards propagation
             return Err(Error::BackwardPropagation);
         }
+        // Skip this propagation if the last one was recent.
+        if delta_t < MIN_PROPAGATION_TIME { return Ok(()) }
 
         self.last_time_ms = time_ms;
 
@@ -87,13 +96,39 @@ impl Filter {
         }
 
         // Update covariance.
-        self.covariance = F_MATRIX * self.covariance * F_MATRIX.transpose() + self.q_matrix();
+        self.covariance = F_MATRIX * self.covariance * F_MATRIX.transpose() + self.q_matrix(delta_t);
         Ok(())
     }
 
-    fn q_matrix(&self) -> Matrix4<f32> {
-        // TODO
-        Matrix4::<f32>::identity() * 0.1
+    fn q_matrix(&self, delta_t: f32) -> Matrix4<f32> {
+        let acc_var = R_A.to_scalar();
+        let delta_t2 = delta_t * delta_t;
+        let delta_t3 = delta_t2 * delta_t;
+        let delta_t4 = delta_t2 * delta_t2;
+        let delta_t5 = delta_t3 * delta_t2;
+        // Discretization of the continuous noise process. R_A also represents
+        // the noise in the control (or forcing) input that's why it's also here
+        Matrix4::new(
+            (delta_t5 * ACCELEROMETER_BIAS_NOISE_VARIANCE / 20.0) + (delta_t3 * acc_var / 3.0),
+            (delta_t4 * ACCELEROMETER_BIAS_NOISE_VARIANCE / 8.0) + (delta_t2 * acc_var / 2.0),
+            -delta_t3 * ACCELEROMETER_BIAS_NOISE_VARIANCE / 6.0,
+            0.0,
+            
+            (delta_t4 * ACCELEROMETER_BIAS_NOISE_VARIANCE / 8.0) + (delta_t2 * acc_var / 2.0),
+            (delta_t3 * ACCELEROMETER_BIAS_NOISE_VARIANCE / 3.0) + (delta_t * acc_var),
+            -delta_t2 * ACCELEROMETER_BIAS_NOISE_VARIANCE / 2.0,
+            0.0,
+
+            -delta_t3 * ACCELEROMETER_BIAS_NOISE_VARIANCE / 6.0,
+            -delta_t2 * ACCELEROMETER_BIAS_NOISE_VARIANCE / 2.0,
+            delta_t * ACCELEROMETER_BIAS_NOISE_VARIANCE,
+            0.0,
+
+            0.0,
+            0.0,
+            0.0,
+            delta_t * BAROMETER_BIAS_NOISE_VARIANCE,
+        )
     }
 
     /// Updates the filter based on a pressure measurement from the barometer.
@@ -143,7 +178,8 @@ impl Filter {
     ) -> Result<(), Error> {
         // After apogee, the acceleration is too unpredictable.
         match flight_stage {
-            FlightStage::Recovery => { return Err(Error::NotEnoughData); }
+            FlightStage::Boost { .. } | // TODO: temporary, see TODO below
+            FlightStage::Recovery => { return Err(Error::NotEnoughData); },
             _ => {}
         };
 
@@ -232,6 +268,14 @@ impl Filter {
     /// inertial reference frame.
     pub fn upward_acceleration(&self, measured_upward_acceleration: f32) -> f32 {
         measured_upward_acceleration - GRAVITY_MPS2 - self.upward_acceleration_bias()
+    }
+
+    pub fn state(&self) -> Vector4<f32> {
+        self.state
+    }
+
+    pub fn covariance(&self) -> Matrix4<f32> {
+        self.covariance
     }
 }
 
