@@ -74,7 +74,7 @@ pub fn run(multi: MultiProgress, output: String, flags: DataFlags) -> Result<(),
         let _ = filter.update_acceleration(
             time_ms, 
             packet.accel_z_mps2, 
-            0.0,
+            0.544,
             stage,
         );
 
@@ -135,8 +135,7 @@ pub fn run(multi: MultiProgress, output: String, flags: DataFlags) -> Result<(),
             packet.pressure_pa.to_string(), // "pressure_pascals",
             "15.0".to_string(), // "temperature_c",
             (match stage {
-                FlightStage::Idle => "0",
-                FlightStage::Boost { .. } => "1",
+                FlightStage::Boost { .. } | 
                 FlightStage::InactiveCoast => "1",
                 FlightStage::ActiveCoast => "2",
                 FlightStage::Recovery => "3",

@@ -29,8 +29,8 @@ const R_P: Matrix1<f32> = Matrix1::new(1.1); // TODO: measure
 const R_A: Matrix1<f32> = Matrix1::new(1.8e-2); // TODO: estimate
 
 /// The variance in the drift of the accelerometer bias.
-const ACCELEROMETER_BIAS_NOISE_VARIANCE: f32 = 1.0e-4;
-const BAROMETER_BIAS_NOISE_VARIANCE: f32 = 5.0e-3;
+const ACCELEROMETER_BIAS_NOISE_VARIANCE: f32 = 1.0e-2;
+const BAROMETER_BIAS_NOISE_VARIANCE: f32 = 5.0e-2;
 
 /// This class implements an Extended Kalman filter that tracks the altitude of
 /// the rocket in flight.
@@ -198,16 +198,18 @@ impl Filter {
                 -self.drag(drag_coefficient)
             },
             FlightStage::InactiveCoast |
-            FlightStage::ActiveCoast => -self.drag(drag_coefficient),
+            FlightStage::ActiveCoast => -self.drag(drag_coefficient) / ROCKET_BURNOUT_MASS_KG,
             _ => unreachable!()
         };
         
         // The Jacobian of the accelerometer prediction
         let h = RowVector4::new(0.0, 0.0, 1.0, 0.0) + match flight_stage {
             FlightStage::Idle => RowVector4::zeros(),
-            FlightStage::Boost { .. } |
+            FlightStage::Boost { .. } => {
+                -self.drag_jacobian(drag_coefficient) // TODO: rocket mass
+            },
             FlightStage::InactiveCoast |
-            FlightStage::ActiveCoast => -self.drag_jacobian(drag_coefficient),
+            FlightStage::ActiveCoast => -self.drag_jacobian(drag_coefficient) / ROCKET_BURNOUT_MASS_KG,
             _ => unreachable!()
         };
 
