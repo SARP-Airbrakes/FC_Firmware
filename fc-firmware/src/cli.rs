@@ -29,6 +29,23 @@ enum Base<'a> {
     },
     /// Reports stats from the flight log.
     Stats,
+    /// Takes measurements from sensors.
+    Measure {
+        /// How many samples to take per measurement (1000 by default)
+        #[arg(short = 's', long)]
+        samples: Option<u32>,
+
+        #[command(subcommand)]
+        command: Measure,
+    }
+}
+
+#[derive(embedded_cli::Command, Clone, Copy)]
+enum Measure {
+    /// Measures the variance in the pressure measurement of the barometer.
+    Baro,
+    /// Measures the variance in the x-axis acceleration measurement of the accelerometer.
+    Accel,
 }
 
 #[inline]
@@ -64,12 +81,12 @@ pub async fn handle_command(
             let log = l.as_mut().unwrap();
             if all {
                 usb_write("Erasing entire chip...\r\n").await;
-                log.erase_chip().await;
-                log.reset();
+                let _ = log.erase_chip().await;
+                let _ = log.reset();
                 usb_write("Chip erased.\r\n").await;
             } else if let Some(sector) = sector {
                 usb_write("Erasing target sector...\r\n").await;
-                log.erase_sector(sector).await;
+                let _ = log.erase_sector(sector).await;
                 usb_write("Sector erased.\r\n").await;
             } else if title.is_none() {
                 usb_write("Nothing selected to erase, or title not given.\r\n").await;
@@ -79,12 +96,12 @@ pub async fn handle_command(
                 let string = String::<32, u8>::try_from(title);
                 if let Ok(string) = string {
                     log.header.flight_name = Some(string);
-                    log.update_header().await;
+                    let _ = log.update_header().await;
                     usb_write("Wrote title: ").await;
                     usb_write(title).await;
                     usb_write("\r\n").await;
                 } else {
-                    usb_write("Given title too long; not writing.\r\n");
+                    usb_write("Given title too long; not writing.\r\n").await;
                 }
             }
         },
@@ -119,6 +136,57 @@ pub async fn handle_command(
             );
             usb_write(formatted.as_ref().map_or(
                 "Last write: <error>\r\n",
+                String::as_str
+            )).await;
+        },
+        Base::Measure { samples, command } => {
+            let mut variance: f32 = 0.0;
+            let mut average: f32 = 0.0;
+            for i in 0..samples.unwrap_or(1000) {
+                let sample = match command {
+                    Measure::Baro => {
+                        crate::sensor::LATEST_PRESSURE.wait().await
+                    },
+                    Measure::Accel => {
+                        crate::sensor::LATEST_ACCELERATION_Z.wait().await
+                    }
+                };
+
+                average *= i as f32;
+                average += sample;
+                average /= i as f32 + 1.0;
+                if i > 0 {
+                    variance *= i as f32 - 1.0;
+                }
+                variance += (sample - average) * (sample - average);
+                if i > 0 {
+                    variance /= i as f32;
+                }
+
+                let rounded = average as u32;
+                let decimal = ((average - (rounded as f32)) * 10_000.0) as u32;
+                let formatted = format!(
+                    64; "Sample: {}.{:04} ({}/{})\r\n",
+                    rounded,
+                    decimal,
+                    i + 1,
+                    samples.unwrap_or(1000)
+                );
+                usb_write(formatted.as_ref().map_or(
+                    "",
+                    String::as_str
+                )).await;
+            }
+
+            let rounded = variance as u32;
+            let decimal = ((variance - (rounded as f32)) * 1_000_000.0) as u32;
+            let formatted = format!(
+                64; "Measured variance: {}.{:06}\r\n",
+                rounded,
+                decimal
+            );
+            usb_write(formatted.as_ref().map_or(
+                "Failed to format variance.\r\n",
                 String::as_str
             )).await;
         }

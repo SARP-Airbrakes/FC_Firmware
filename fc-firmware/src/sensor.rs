@@ -1,6 +1,6 @@
 
 
-use bmi088::{Bmi088, AccelerationLike};
+use bmi088::{AccConf, AccelerationLike, Bmi088};
 use bmp390::{Bmp390, PowerCtrl, PowerCtrlMode};
 
 use defmt::*;
@@ -9,7 +9,12 @@ use embassy_executor::SendSpawner;
 use embassy_stm32::{Peri, dma, i2c};
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::peripherals::*;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::signal::Signal;
 use embassy_time::Timer;
+
+pub static LATEST_ACCELERATION_Z: Signal<CriticalSectionRawMutex, f32> = Signal::new();
+pub static LATEST_PRESSURE: Signal<CriticalSectionRawMutex, f32> = Signal::new();
 
 bind_interrupts!(struct Irqs {
     I2C1_EV => i2c::EventInterruptHandler<I2C1>;
@@ -41,16 +46,17 @@ pub async fn initialize_i2c(
 async fn initialize_bmi(bus: &'static fc_firmware::I2cBus) {
     let device = I2cDevice::new(bus);
     let mut bmi = Bmi088::new(device);
+    unwrap!(bmi.reset_acc(&mut embassy_time::Delay).await);
+    unwrap!(bmi.set_acc_conf(AccConf::Odr(bmi088::AccOdr::Hz100) | AccConf::Osr(bmi088::AccOsr::Normal)).await);
+    unwrap!(bmi.set_acc_range(bmi088::AccRange::Range12G).await);
     unwrap!(bmi.enable_acc(&mut embassy_time::Delay).await);
-    unwrap!(bmi.set_acc_range(bmi088::AccRange::Range6G).await);
 
     let range = bmi.acc_range();
 
     loop {
-        Timer::after_secs(1).await;
+        Timer::after_millis(10).await;
         if let Ok(m) = bmi.read_acc().await {
-            debug!("Measurement: {}", m);
-            debug!("{} {} {}", m.x_ms2(range), m.y_ms2(range), m.z_ms2(range))
+            LATEST_ACCELERATION_Z.signal(m.z_ms2(range));
         }
     }
 }
@@ -69,14 +75,12 @@ async fn initialize_bmp(bus: &'static fc_firmware::I2cBus) {
     debug!("Coefficients: {}", coeff);
 
     loop {
-        Timer::after_secs(1).await;
-        if let Ok((p, t)) = bmp.read().await {
+        if !unwrap!(bmp.is_drdy_temp().await) {
+            Timer::after_millis(10).await;
+        } else if let Ok((p, t)) = bmp.read().await {
             let temp = t.compensate(&coeff);
             let press = p.compensate(&coeff, temp);
-            let altitude = bmp390::Pressure::estimate_altitude_hypsometric(press, temp);
-            debug!("Temperature measurement: {} C", temp);
-            debug!("Pressure measurement: {} Pa", press);
-            debug!("Altitude measurement: {} m", altitude);
+            LATEST_PRESSURE.signal(press);
         }
     }
 }

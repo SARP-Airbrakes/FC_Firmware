@@ -83,7 +83,7 @@ impl<'a, R: std::io::Read> FlightPacketIterator<'a, R> {
 
     fn into_packet(&self, record: csv::StringRecord) -> Result<FlightPacket, Error> {
         Ok(FlightPacket {
-            time_s: record.get(0).ok_or(Error::Parse)?.parse()?,
+            time_s: record.get(1).ok_or(Error::Parse)?.parse()?,
             accel_x_mps2: record.get(2).ok_or(Error::Parse)?.parse()?,
             accel_y_mps2: record.get(3).ok_or(Error::Parse)?.parse()?,
             accel_z_mps2: record.get(4).ok_or(Error::Parse)?.parse()?,

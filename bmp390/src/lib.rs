@@ -104,6 +104,14 @@ where
         self.write_u8(regs::BMP390_PWR_CTRL, ctrl.into()).await
     }
 
+    pub async fn is_drdy_press(&mut self) -> Result<bool, Error<E>> {
+        Ok((self.read_u8(regs::BMP390_STATUS).await? & 0x10) != 0)
+    }
+
+    pub async fn is_drdy_temp(&mut self) -> Result<bool, Error<E>> {
+        Ok((self.read_u8(regs::BMP390_STATUS).await? & 0x20) != 0)
+    }
+
     fn i2c_addr(&self) -> u8 {
         if self.sdo_high { regs::BMP390_ADDRESS_HIGH } else { regs::BMP390_ADDRESS_LOW }
     }

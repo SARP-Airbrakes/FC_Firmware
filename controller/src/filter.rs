@@ -23,14 +23,14 @@ const F_MATRIX: Matrix4<f32> = Matrix4::new(
 
 /// The measurement noise covariance matrix (a scalar variance) for barometer
 /// pressure measurements.
-const R_P: Matrix1<f32> = Matrix1::new(1.1); // TODO: measure
+const R_P: Matrix1<f32> = Matrix1::new(0.675127);
 /// The measurement noise covariance matrix (a scalar variance) for
 /// accelerometer acceleration measurements.
-const R_A: Matrix1<f32> = Matrix1::new(1.8e-2); // TODO: estimate
+const R_A: Matrix1<f32> = Matrix1::new(4.0e-3);
 
 /// The variance in the drift of the accelerometer bias.
-const ACCELEROMETER_BIAS_NOISE_VARIANCE: f32 = 1.0e-2;
-const BAROMETER_BIAS_NOISE_VARIANCE: f32 = 5.0e-2;
+const ACCELEROMETER_BIAS_NOISE_VARIANCE: f32 = 1.0e-3;
+const BAROMETER_BIAS_NOISE_VARIANCE: f32 = 5.0e-3;
 
 /// This class implements an Extended Kalman filter that tracks the altitude of
 /// the rocket in flight.
