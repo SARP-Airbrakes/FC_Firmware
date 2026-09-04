@@ -1,6 +1,9 @@
+# Build artifacts
 /target
 
+# Testing data.
 controller-tests/data.csv
 controller-tests/filter_out.csv
 
+# rustc crash logs.
 rustc-ice*
