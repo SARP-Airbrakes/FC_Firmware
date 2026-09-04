@@ -31,8 +31,8 @@ the root directory of the repository for usage with the [`probe-rs` VSCode plugi
 you are in the `fc-firmware` directory; then simply use `cargo run`.
 
 ## Connecting
-The firmware exposes a USB CDC device. This can be connected to with a serial
-monitor such as the in-built one in the Arduino IDE or a \*nix tool such
+The firmware exposes a USB CDC-ACM device. This can be connected to with a
+serial monitor such as the in-built one in the Arduino IDE or a \*nix tool such
 `screen` or [`tio`](https://github.com/tio/tio). 
 
 ```
