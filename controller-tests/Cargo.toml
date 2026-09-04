@@ -1,7 +1,9 @@
 [package]
 name = "controller-tests"
 version = "0.1.0"
-description = "This crate is used for processing past flight data with the different controller subcomponents for testing."
+description = """
+This crate is used for processing past flight data with the different controller
+subcomponents for testing."""
 edition = "2024"
 
 [dependencies]
