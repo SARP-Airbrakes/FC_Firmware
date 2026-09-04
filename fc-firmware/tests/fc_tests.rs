@@ -360,10 +360,11 @@ mod tests {
         let mut log = FlightLog::new(state.w25);
         unwrap!(log.update_header().await);
 
-        let packet1 = Packet::TemperaturePressure {
+        let packet1 = Packet::BarometerMeasurement {
             time: FlightTime::now(), 
             temperature: 15.0,
-            pressure: 101325.0
+            pressure: 101325.0,
+            altitude: 0.0,
         };
         unwrap!(log.push_packet(packet1.clone()).await);
 
