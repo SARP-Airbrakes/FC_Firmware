@@ -1,5 +1,24 @@
+//! This module is for the implementation of the CLI, including the processing
+//! and commands.
+//!
+//! The CLI is accessible via a USB CDC ACM device exposed on the USB port on
+//! the flight computer hardware. For the implementation of reading from the USB
+//! device, see [`crate::usb`] and the type [`UsbPipe`]. Of note in this module
+//! is the function [`handle_command`], which is where all commands present on
+//! the firmware are handled.
+//!
+//! Importantly, the commands execute on an
+//! [InterruptExecutor](embassy_executor::InterruptExecutor), while the commands
+//! are processed on a normal thread-mode
+//! [Executor](embassy_executor::Executor); this is so the processing thread can
+//! stop entirely while waiting for the commands to execute. See the
+//! [`process_cli`] function for more details.
+//!
+//! For details of usage, please see the Connecting section of the folder-level
+//! `README.md`.
 
 use core::{convert::Infallible, slice, sync::atomic::{AtomicBool, AtomicUsize, Ordering}};
+use cortex_m::peripheral::scb::VectActive;
 use defmt::{unreachable, *};
 use embassy_executor::SendSpawner;
 use embassy_sync::{
@@ -9,6 +28,7 @@ use heapless::{String, format};
 use embedded_cli::cli::CliBuilder;
 use crate::{memory::FLIGHT_LOG, usb::{USB_READ_PIPE, USB_WRITE_PIPE, UsbPipe}};
 
+/// The commands present on the firmware.
 #[derive(embedded_cli::Command)]
 enum Base<'a> {
     /// Print version information for the hardware.
@@ -40,6 +60,7 @@ enum Base<'a> {
     }
 }
 
+/// Subcommands of the [Measure](Base::Measure) command.
 #[derive(embedded_cli::Command, Clone, Copy)]
 enum Measure {
     /// Measures the variance in the pressure measurement of the barometer.
@@ -48,11 +69,15 @@ enum Measure {
     Accel,
 }
 
+/// Shorthand function for writing a string slice to the USB output pipe
+/// directly (see [`USB_WRITE_PIPE`]).
 #[inline]
 async fn usb_write(string: &str) {
     USB_WRITE_PIPE.write(string.as_bytes()).await;
 }
 
+/// Prints a formatted version information of the firmware to the USB output
+/// pipe (see [`usb_write`]).
 async fn print_version() {
     const VERSION_STRING: &'static str = 
         concat!("Airbrakes flight computer firmware (version v", env!("CARGO_PKG_VERSION"), ")\r\n");
@@ -60,18 +85,27 @@ async fn print_version() {
     usb_write("(c) 2026 Society for Advanced Rocket Propulsion\r\n").await;
 }
 
+/// This task executes the given command.
+///
+/// Runs the given function after the command has elapsed execution; this
+/// callback is used to resume execution of the CLI processing.
+///
+/// # Lifetimes
+/// The command argument requires a [`'static`] lifetime (due to lifetime bounds
+/// from [`embassy_executor::task`]), and thus requires unsafe transmutation.
+/// See the body of [`process_cli`] for further detail.
 #[embassy_executor::task]
 pub async fn handle_command(
-    writer: &'static UsbPipe,
-    command: &'static Base<'static>,
+    command: Base<'static>,
     mark_done: fn()
 ) {
     scopeguard::defer! { mark_done(); }
 
-    match *command {
+    match command {
         Base::Version => {
             print_version().await;
         },
+
         Base::Erase { sector, all, title } => {
             let mut l = FLIGHT_LOG.lock().await;
             if l.is_none() {
@@ -105,6 +139,7 @@ pub async fn handle_command(
                 }
             }
         },
+
         Base::Stats => {
             let mut l = FLIGHT_LOG.lock().await;
             if l.is_none() {
@@ -139,6 +174,7 @@ pub async fn handle_command(
                 String::as_str
             )).await;
         },
+
         Base::Measure { samples, command } => {
             let mut variance: f32 = 0.0;
             let mut average: f32 = 0.0;
@@ -193,8 +229,23 @@ pub async fn handle_command(
     }
 }
 
+/// This task takes input from the USB and executes commands when
+/// commands are found.
+///
+/// Importantly, this task fully blocks when executing a command, using the
+/// Cortex-M instructions WFE/SEV. This task should have a separate, thread-mode
+/// executor (see [`embassy_executor::Executor`]) for it to solely use.
+///
+/// # Panics
+/// Panics if the task executes in a non-thread-mode executor.
 #[embassy_executor::task]
 pub async fn process_cli(spawner: SendSpawner) {
+    match cortex_m::peripheral::SCB::vect_active() {
+        !VectActive::ThreadMode => panic!("Cannot process CLI in non-thread-mode executor!"),
+        _ => {}
+    }
+
+    // For tracking when writing from the blocking writer
     let dropped = AtomicUsize::new(0);
     let writer = PipeWriter::new(&USB_WRITE_PIPE, &dropped);
 
@@ -202,11 +253,11 @@ pub async fn process_cli(spawner: SendSpawner) {
     USB_WRITE_PIPE.write("Use the command 'help' to view available commands.\r\n".as_bytes()).await;
     USB_WRITE_PIPE.write("\r\n".as_bytes()).await;
 
+    // Build the CLI with default buffers and buffer sizes.
     let cli = CliBuilder::default()
         .writer(writer)
         .build()
         .unwrap();
-    let cli = Mutex::<NoopRawMutex, _>::new(cli);
 
     loop {
         let dropped = dropped.swap(0, Ordering::AcqRel);
@@ -214,36 +265,50 @@ pub async fn process_cli(spawner: SendSpawner) {
             warn!("{} bytes dropped from console!", dropped);
         }
 
+        // Read a character at a time
         let mut c = 0u8;
         USB_READ_PIPE.read(slice::from_mut(&mut c)).await;
 
+        // Create a processor
         let mut processor = Base::processor(|cli, command| {
-            let command_ref = &command;
-
+            // Use a thread-safe atomic to delineate when the sleep should end.
             static DONE: AtomicBool = AtomicBool::new(false);
             fn mark_done() {
                 DONE.store(true, Ordering::Release);
                 cortex_m::asm::sev();
             }
+
             DONE.store(false, Ordering::Release);
 
+            // We are guaranteed by virtue of the lifetime in
+            // [`Base::processor`] that [`command`] and the data that it holds
+            // will not be dropped or invalid until after the scope ends. Thus,
+            // we can "erase" the lifetime present on the data (artifically
+            // extend it to infinity, [`'static`]), so we can properly pass it
+            // to the command execution task.
             let command = unsafe {
-                core::mem::transmute::<&'_ Base<'_>, &'static Base<'static>>(&command_ref)
+                core::mem::transmute::<Base<'_>, Base<'static>>(command)
             };
 
+            // Throw it into the spawner
             spawner.spawn(
-                handle_command(&USB_WRITE_PIPE, command, mark_done)
+                handle_command(command, mark_done)
                     .unwrap()
             );
 
-            ::core::assert_eq!(cortex_m::peripheral::SCB::vect_active(), cortex_m::peripheral::scb::VectActive::ThreadMode);
+            // Sleep the core until marked done
             while !DONE.load(Ordering::Acquire) {
                 cortex_m::asm::wfe();
             }
-            cli.writer().write_str(""); // to prompt
+            
+            // Makes the CLI write the prompt after finishing execution.
+            cli.writer().write_str("");
             Ok(())
         });
-        let _ = cli.lock().await.process_byte::<Base, _>(
+
+        // Use the CLI processor to process the byte. Automatically executes the
+        // command if it parses a valid command.
+        let _ = cli.process_byte::<Base, _>(
             c,
             &mut processor
         );
@@ -260,6 +325,8 @@ struct PipeWriter<'a> {
 
 impl<'a> PipeWriter<'a> {
 
+    /// Creates a new [`PipeWriter`] from a given [`UsbPipe`] and dropped
+    /// counter.
     pub fn new(pipe: &'static UsbPipe, dropped: &'a AtomicUsize) -> Self {
         Self {
             pipe,
