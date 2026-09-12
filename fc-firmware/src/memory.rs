@@ -1,10 +1,18 @@
+//! This module is for initialization and usage of both the flash memory and the
+//! flight log.
+//!
+//! To use the flight log, there is an exposed [`Channel`] for sending packets
+//! (see [`LOG_WRITE_CHANNEL`]) or the shorthand [`push_packet`].
 
 use defmt::unwrap;
 use embassy_stm32::{Peri, bind_interrupts, dma, gpio, mode::Async, peripherals::*, spi};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, mutex::Mutex};
 use fc_firmware::log::{FlightLog, Packet};
 
+/// A global channel for the purpose of enqueuing packets for writing to the
+/// flight log.
 pub static LOG_WRITE_CHANNEL: Channel<CriticalSectionRawMutex, Packet, 8> = Channel::new();
+/// The flight log, accessible via mutex.
 pub static FLIGHT_LOG: Mutex<
     CriticalSectionRawMutex, 
     Option<
@@ -21,11 +29,19 @@ bind_interrupts!(struct Irqs {
     DMA2_STREAM3 => dma::InterruptHandler<DMA2_CH3>;
 });
 
+/// Pushes a packet to the channel.
 pub async fn push_packet(packet: Packet) {
     LOG_WRITE_CHANNEL.send(packet).await;
 }
 
-/// Initializes the flash memory for flight log usage.
+/// Initializes the flash memory for flight log usage, and then begin writing
+/// packets to the flight log.
+/// 
+/// Packets can be given to the task via [`LOG_WRITE_CHANNEL`] or
+/// [`push_packet`].
+///
+/// # Panics
+/// Panics if re-writing the header to the flight log fails.
 #[embassy_executor::task]
 pub async fn initialize_memory(
     spi: Peri<'static, SPI1>,
@@ -36,6 +52,7 @@ pub async fn initialize_memory(
     rx_dma: Peri<'static, DMA2_CH2>,
     flash_cs: Peri<'static, PA9>,
 ) {
+    // Initialize the flash memory.
     let w25 = fc_firmware::initialize_w25q128jv(
         spi, 
         sck, 
@@ -46,15 +63,19 @@ pub async fn initialize_memory(
         flash_cs,
         Irqs
     ).await;
+
+    // Initialize the flight log.
     let mut log = FlightLog::new(w25);
     if let Err(_) = log.read_header().await {
         defmt::debug!("Failed to read log header.");
     }
+
     unwrap!(log.update_header().await);
 
     // Move log to global mutex.
     { *(FLIGHT_LOG.lock().await) = Some(log); }
 
+    // Loop to wait for packets for writing.
     loop {
         let packet = LOG_WRITE_CHANNEL.receive().await;
         if let Some(f) = FLIGHT_LOG.lock().await.as_mut().map(|l| l.push_packet(packet)) {
