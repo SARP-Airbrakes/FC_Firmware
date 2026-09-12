@@ -14,21 +14,25 @@ rustup target add thumbv7em-none-eabihf
 ```
 
 From there, the firmware can be built as normal with `cargo build`. The firmware
-also uses [`defmt`](https://defmt.ferrous-systems.com/introduction), which at compile-time decides what log levels are compiled
-into the firmware. This can be configured with the environment variable
+also uses [`defmt`](https://defmt.ferrous-systems.com/introduction), which at
+compile-time decides what log levels are compiled into the firmware. This can be
+configured with the environment variable
 `DEFMT_LOG`. For example: 
 ```
 DEFMT_LOG=trace cargo build
 ```
 
 ## Running
-This crate uses [`probe-rs`](https://probe.rs) to interface with and debug the the flight computer
-hardware. To use it, connect to the flight computer hardware via an ST-Link, and then use one of two ways to run the firmware:
+This crate uses [`probe-rs`](https://probe.rs) to interface with and debug the
+the flight computer hardware. To use it, connect to the flight computer hardware
+via an ST-Link, and then use one of two ways to run the firmware:
 
-1. There are Visual Studio Code launch configurations present in
-the root directory of the repository for usage with the [`probe-rs` VSCode plugin](https://marketplace.visualstudio.com/items?itemName=probe-rs.probe-rs-debugger) (strongly recommended).
+1. There are Visual Studio Code launch configurations present in the root
+   directory of the repository for usage with the [`probe-rs` VSCode
+   plugin](https://marketplace.visualstudio.com/items?itemName=probe-rs.probe-rs-debugger)
+   (strongly recommended).
 2. The `cargo` runner has been configured to use `probe-rs`. First, make sure
-you are in the `fc-firmware` directory; then simply use `cargo run`.
+   you are in the `fc-firmware` directory; then simply use `cargo run`.
 
 ## Connecting
 The firmware exposes a USB CDC-ACM device. This can be connected to with a
@@ -49,4 +53,5 @@ Commands:
 $
 ```
 
-When using `tio`, it is strongly recommended to map `DEL` to `BS`: `tio --map ODELBS /dev/ttyACM0`.
+When using `tio`, it is strongly recommended to map `DEL` to `BS`: `tio --map
+ODELBS /dev/ttyACM0`.
