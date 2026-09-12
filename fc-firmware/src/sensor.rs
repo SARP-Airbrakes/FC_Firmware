@@ -1,4 +1,8 @@
-
+//! This module is for the initialization and usage of the two sensors on the
+//! board (BMP390, BMI088).
+//!
+//! The sensors expose the latest data collected via public [`Signal`] static
+//! variables (see [`LATEST_ACCELERATION_Z`] and [`LATEST_PRESSURE`]).
 
 use bmi088::{AccConf, AccelerationLike, Bmi088};
 use bmp390::{Bmp390, PowerCtrl, PowerCtrlMode};
@@ -13,7 +17,9 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::Timer;
 
+/// The latest upward acceleration (in m/s^2) read from the accelerometer.
 pub static LATEST_ACCELERATION_Z: Signal<CriticalSectionRawMutex, f32> = Signal::new();
+/// The latest pressure value (in Pa) read from the barometer.
 pub static LATEST_PRESSURE: Signal<CriticalSectionRawMutex, f32> = Signal::new();
 
 bind_interrupts!(struct Irqs {
@@ -46,6 +52,8 @@ pub async fn initialize_i2c(
 async fn initialize_bmi(bus: &'static fc_firmware::I2cBus) {
     let device = I2cDevice::new(bus);
     let mut bmi = Bmi088::new(device);
+
+    // Reset and reconfigure the accelerometer.
     unwrap!(bmi.reset_acc(&mut embassy_time::Delay).await);
     unwrap!(bmi.set_acc_conf(AccConf::Odr(bmi088::AccOdr::Hz100) | AccConf::Osr(bmi088::AccOsr::Normal)).await);
     unwrap!(bmi.set_acc_range(bmi088::AccRange::Range12G).await);
@@ -54,6 +62,7 @@ async fn initialize_bmi(bus: &'static fc_firmware::I2cBus) {
     let range = bmi.acc_range();
 
     loop {
+        // TODO: use interrupts
         Timer::after_millis(10).await;
         if let Ok(m) = bmi.read_acc().await {
             LATEST_ACCELERATION_Z.signal(m.z_ms2(range));
@@ -61,11 +70,14 @@ async fn initialize_bmi(bus: &'static fc_firmware::I2cBus) {
     }
 }
 
-/// Initializes the BMP390 sensor.
+/// Initializes the BMP390 sensor, and then listens for new data from the
+/// device.
 #[embassy_executor::task]
 async fn initialize_bmp(bus: &'static fc_firmware::I2cBus) {
     let device = I2cDevice::new(bus);
     let mut bmp = Bmp390::new(device);
+
+    // Read the calibration coefficients.
     let coeff = unwrap!(bmp.read_coefficients().await);
     unwrap!(bmp.set_pwr_ctrl(
         PowerCtrl::PressureEnable | 
