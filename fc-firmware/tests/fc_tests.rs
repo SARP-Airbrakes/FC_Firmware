@@ -9,7 +9,8 @@ mod tests {
     use defmt::{unwrap, info};
     use bmi088::{Bmi088, AccelerationLike};
     use bmp390::{Bmp390, Coefficients};
-    use w25qxxxjv::{W25qxxxjv, Model};
+    use fc_firmware::log::FlightTime;
+use w25qxxxjv::{W25qxxxjv, Model};
     use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
     use embassy_time::Timer;
     use embassy_stm32::{
@@ -395,5 +396,24 @@ mod tests {
 
         let fail = log.read_next_packet().await;
         assert!(fail.is_err());
+    }
+
+    #[test]
+    async fn filter_once(mut state: State) {
+        use controller::{
+            stage::FlightStage,
+            filter::Filter
+        };
+
+        let filter = Filter::new(0.0, 0);
+        unwrap!(filter.update_pressure(1000, 101325.0));
+        unwrap!(filter.update_acceleration(
+            1200, 
+            9.81, 
+            0.0, 
+            FlightStage::Idle,
+        ));
+
+        assert_eq!();
     }
 }
